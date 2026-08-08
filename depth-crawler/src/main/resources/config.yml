@@ -1,0 +1,24 @@
+# DepthCrawler 設定ファイル
+dungeon:
+  min-floors: 3
+  max-floors: 8
+  min-room-size: 15
+  max-room-size: 30
+  extraction-rush-duration: 60.0
+  chest-streak-multiplier: 0.25
+  grid-size: 10
+  room-inner-size: 10
+  floor-spacing: 121
+  base-y: 63
+  exit-stand-seconds: 3.0
+player:
+  max-safe-box-slots: 54
+  max-safe-box-pages: 5
+shop:
+  reforge-cost: 100.0
+  heal-cost: 50.0
+insurance:
+  merchant-fee-rate: 0.3
+world:
+  mob-griefing: false
+  do-fire-tick: false

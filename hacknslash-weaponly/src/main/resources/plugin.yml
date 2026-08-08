@@ -1,0 +1,18 @@
+name: Weaponly
+version: '0.1.0'
+main: com.hacknslash.weaponly.WeaponlyPlugin
+api-version: '1.19'
+author: HACKnSLASH
+description: 武器・防具の強化・育成システム（覚醒/ジェム/改造/リフォージ/合成）
+load: POSTWORLD
+
+commands:
+  weaponly:
+    description: HACKnSLASH Weaponly 強化システム
+    aliases: [wo, ws]
+    usage: /weaponly <reforge [precise]|awaken|modify <type>|unmodify|gem apply <effect>|gem remove <id>|synthesize|info>
+
+permissions:
+  weaponly.admin:
+    description: Weaponly 管理者権限
+    default: op

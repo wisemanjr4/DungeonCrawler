@@ -1,0 +1,33 @@
+name: DepthCrawler
+version: '1.1.0'
+main: com.dungeoncrawler.DepthCrawlerPlugin
+api-version: '1.19'
+author: DepthCrawler
+description: 毎回ランダム生成されるダンジョンを探索するハクスラ系プラグイン
+load: POSTWORLD
+
+commands:
+  dungeon:
+    description: ダンジョン関連コマンド
+    aliases: [dc]
+    usage: /dungeon <help|enter|info|mercy|insure|claim|insurance|party|setup|npc|admin|room>
+  shop:
+    description: ショップメニューを開く
+    aliases: [market]
+    usage: /shop [balance]
+  safebox:
+    description: セーフティボックスを開く
+    aliases: [sb, box]
+    usage: /safebox [deposit]
+  showitem:
+    description: 手持ち装備のステータスを表示
+    aliases: [si, show]
+    usage: /showitem [slot]
+  db:
+    description: ビルドコマンド（建築ツール）
+    usage: /db <guide|pos1|pos2|material|room|corridor|doorway|platform|wall|torch|stairs|fountain|chest|pillar|maze|undo|reset>
+
+permissions:
+  depthcrawler.admin:
+    description: 管理者権限（セットアップ・NPC設置等）
+    default: op

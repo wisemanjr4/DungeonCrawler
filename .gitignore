@@ -1,0 +1,22 @@
+# Build artifacts
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+
+# Runtime data
+plugins/
+playerdata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Maven
+*.log

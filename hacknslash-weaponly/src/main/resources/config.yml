@@ -1,0 +1,31 @@
+# HACKnSLASH Weaponly 設定
+economy:
+  # 各強化操作のコスト（連携タイトルの通貨）
+  reforge-cost: 100.0
+  reforge-precise-cost: 500.0
+  awaken-base-cost: 200.0
+  modify-cost: 300.0
+  unmodify-cost: 0.0
+  gem-apply-cost: 150.0
+  gem-remove-cost: 50.0
+  synthesize-cost: 250.0
+
+awaken:
+  # 覚醒の上乗せ値（+1〜+10）
+  min: 1
+  max: 10
+  # クオリティ（I〜V = ☆〜☆☆☆☆☆）
+  min-quality: 1
+  max-quality: 5
+
+mods:
+  # 改造の種類と方向性
+  types:
+    - "隼"   # 攻撃速度
+    - "重"   # 攻撃力
+    - "烈"   # クリティカル
+    - "円"   # 範囲攻撃
+    - "堅"   # 防御
+    - "鋭"   # 貫通
+    - "魔"   # 属性
+    - "真"   # 全ステータス均衡
