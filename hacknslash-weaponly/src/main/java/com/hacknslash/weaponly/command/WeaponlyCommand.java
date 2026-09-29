@@ -37,7 +37,6 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         WeaponStats.ensureInitialized(hand);
-        player.getInventory().setItemInMainHand(hand);
 
         switch (args[0].toLowerCase()) {
             case "reforge" -> reforge(player, hand, args.length > 1 && args[1].equalsIgnoreCase("precise"));
@@ -49,6 +48,8 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             case "info" -> info(player, hand);
             default -> sendHelp(player);
         }
+        // 変更はここで書き戻す（先に書き戻すと以降の変更が切り離されたコピーにしか入らない）
+        player.getInventory().setItemInMainHand(hand);
         return true;
     }
 

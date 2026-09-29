@@ -274,8 +274,9 @@ public class FloorGenerator {
     }
 
     public Location getSpawnLocation(World world, int floor) {
-        int size = getFloorSize();
-        return new Location(world, size / 2.0 + 0.5, baseY + 2, floorStartZ(floor) + 2.5);
+        // 迷路の起点である部屋(0,0)の中央（壁の列に湧かないようにする）
+        double center = inner / 2 + 1 + 0.5;
+        return new Location(world, center, baseY + 2, floorStartZ(floor) + center);
     }
 
     public Location getExitLocation(World world, int floor) {

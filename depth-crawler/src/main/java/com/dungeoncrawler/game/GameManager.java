@@ -130,7 +130,7 @@ public class GameManager {
             }
         }
         if (boss) {
-            plugin.getCustomMobManager().spawnBoss(session.getWorld(), generator.getSpawnLocation(session.getWorld(), next));
+            plugin.getCustomMobManager().spawnBoss(session.getWorld(), generator.getExitLocation(session.getWorld(), next).add(-3, 0, 0));
         }
         plugin.getCustomMobManager().spawnInitialMobs(session);
     }

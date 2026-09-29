@@ -53,7 +53,7 @@ public class WeaponStats {
      * DC の atk_mult 等から基礎値を導出する。未初期化なら通常の初期化。
      */
     public static void ensureInitialized(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
+        if (item == null || item.getType().isAir()) {
             return;
         }
         PersistentDataContainer c = item.getItemMeta().getPersistentDataContainer();
