@@ -177,21 +177,28 @@ public class ItemNameGenerator {
      * 防具生成。ネームド固定は無し、品質補正のみ。
      */
     public ItemGenerationResult generateArmor() {
+        return generateArmor(null);
+    }
+
+    /**
+     * 防具を生成する。materialPrefix を渡すと、名前に含まれる材質を実際の素材（ティア）に一致させる。
+     */
+    public ItemGenerationResult generateArmor(String materialPrefix) {
         String quality = pick(QUALITY_MODIFIERS);
         ItemGenerationResult base = QUALITY_STATS.getOrDefault(quality, ItemGenerationResult.simple(quality, false));
-        String name = buildArmorName(quality);
+        String name = buildArmorName(quality, materialPrefix);
         return new ItemGenerationResult(name, base.getAtkMult(), base.getDefMult(), base.getSpdMult(),
                 base.getCritBonus(), base.getHpMult(), base.getLifestealBonus(), false);
     }
 
-    private String buildArmorName(String quality) {
+    private String buildArmorName(String quality, String materialPrefix) {
         String base = pick(ARMOR_BASES);
         double roll = RANDOM.nextDouble();
         String result;
         if (roll < 0.15) {
-            result = quality + pick(MATERIAL_PREFIXES) + base + " of the " + pick(OF_THE_X);
+            result = quality + (materialPrefix != null ? materialPrefix : pick(MATERIAL_PREFIXES)) + base + " of the " + pick(OF_THE_X);
         } else if (roll < 0.30) {
-            result = quality + pick(MATERIAL_PREFIXES) + base;
+            result = quality + (materialPrefix != null ? materialPrefix : pick(MATERIAL_PREFIXES)) + base;
         } else if (roll < 0.50) {
             result = quality + base + " of the " + pick(OF_THE_X);
         } else if (roll < 0.70) {

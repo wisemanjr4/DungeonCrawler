@@ -180,7 +180,11 @@ public class LootManager {
 
     public ItemStack rollArmor(int floor, double qualityBonus) {
         int tier = tierForFloor(floor);
-        Material mat = armorMaterial(tier);
+        // 名前を先に生成し、部位（兜/ブーツ等）と材質をティアに一致させる
+        ItemGenerationResult gen = random.nextDouble() < 0.08
+                ? plugin.getItemNameGenerator().generateNamedArmor()
+                : plugin.getItemNameGenerator().generateArmor(armorMaterialPrefix(tier));
+        Material mat = armorMaterial(tier, armorSlot(gen.getName()));
         ItemStack armor = ItemRegistry.createSimple("防具", mat, "", 1);
         ItemRegistry.makeUnbreakable(armor);
         ItemMeta meta = armor.getItemMeta();
@@ -188,10 +192,6 @@ public class LootManager {
         meta.getPersistentDataContainer().set(ItemRegistry.TIER, org.bukkit.persistence.PersistentDataType.INTEGER, tier);
         armor.setItemMeta(meta);
 
-        // 防具: 通常は品質アフィックス補正、8%でネームド
-        ItemGenerationResult gen = random.nextDouble() < 0.08
-                ? plugin.getItemNameGenerator().generateNamedArmor()
-                : plugin.getItemNameGenerator().generateArmor();
         String name = gen.getName();
         String rarity = rollRarity(qualityBonus);
         double[] stats = statsForTier(tier);
@@ -279,15 +279,45 @@ public class LootManager {
         };
     }
 
-    private Material armorMaterial(int tier) {
+    private String armorMaterialPrefix(int tier) {
         return switch (tier) {
-            case 1 -> Material.LEATHER_CHESTPLATE;
-            case 2 -> Material.CHAINMAIL_CHESTPLATE;
-            case 3 -> Material.IRON_CHESTPLATE;
-            case 4 -> Material.GOLDEN_CHESTPLATE;
-            case 5 -> Material.DIAMOND_CHESTPLATE;
-            default -> Material.NETHERITE_CHESTPLATE;
+            case 1 -> "革の";
+            case 2 -> "鎖の";
+            case 3 -> "鉄の";
+            case 4 -> "黄金の";
+            case 5 -> "ダイヤの";
+            default -> "ネザライトの";
         };
+    }
+
+    /** ベース名から装備部位を推定: 0=頭 1=胴 2=脚 3=足 */
+    private int armorSlot(String name) {
+        String[] head = {"兜", "フード", "ヘルメット", "ヘルム", "サークレット", "ティアラ", "王冠", "マスク",
+                "ヴェール", "ハット", "ボンネット", "ヘッドピース", "リボン"};
+        String[] legs = {"レッグガード", "ジュポン", "スカート", "ベルト", "サッシュ", "ロンメル"};
+        String[] feet = {"グリーブ", "ブーツ", "シューズ", "サンダル", "ソレア", "ウィンギャード"};
+        for (String k : head) if (name.contains(k)) return 0;
+        for (String k : feet) if (name.contains(k)) return 3;
+        for (String k : legs) if (name.contains(k)) return 2;
+        return 1;
+    }
+
+    private Material armorMaterial(int tier, int slot) {
+        String prefix = switch (tier) {
+            case 1 -> "LEATHER";
+            case 2 -> "CHAINMAIL";
+            case 3 -> "IRON";
+            case 4 -> "GOLDEN";
+            case 5 -> "DIAMOND";
+            default -> "NETHERITE";
+        };
+        String part = switch (slot) {
+            case 0 -> "HELMET";
+            case 2 -> "LEGGINGS";
+            case 3 -> "BOOTS";
+            default -> "CHESTPLATE";
+        };
+        return Material.valueOf(prefix + "_" + part);
     }
 
     private double[] statsForTier(int tier) {
