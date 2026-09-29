@@ -232,7 +232,8 @@ public class FloorGenerator {
         // 30%の部屋の中央に柱 + 松明
         for (int gx = 0; gx < grid; gx++) {
             for (int gz = 0; gz < grid; gz++) {
-                if (Math.random() < 0.30 && !(gx == grid - 1 && gz == grid - 1)) {
+                // 出口部屋と、スポーン地点のある開始部屋(0,0)には柱を置かない
+                if (Math.random() < 0.30 && !(gx == grid - 1 && gz == grid - 1) && !(gx == 0 && gz == 0)) {
                     int cx = gx * cell + inner / 2 + 1;
                     int cz = gz * cell + inner / 2 + 1;
                     // 柱はチェストと重なる場合スキップ

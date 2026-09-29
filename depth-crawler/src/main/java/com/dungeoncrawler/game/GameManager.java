@@ -113,7 +113,7 @@ public class GameManager {
         boolean treasure = session.getModifier() == FloorModifier.TREASURE;
         generator.generate(session.getWorld(), next, rest, boss, treasure);
 
-        for (UUID uuid : session.getMembers()) {
+        for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
                 p.teleport(generator.getSpawnLocation(session.getWorld(), next));
@@ -237,7 +237,7 @@ public class GameManager {
             endRun(session);
         } else {
             // 残りメンバーに通知
-            for (UUID uuid : session.getMembers()) {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
                     p.sendMessage("§e" + player.getName() + " が生還しました。");
@@ -292,7 +292,7 @@ public class GameManager {
         int[] tickCounter = {0};
         int tickId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             tickCounter[0]++;
-            for (UUID uuid : session.getMembers()) {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
                     try {
@@ -312,7 +312,7 @@ public class GameManager {
         runTaskIds.put(session.getSessionId(), tickId);
         // 出口判定は高頻度で別タスク化（他処理の例外に巻き込まれない）
         int exitId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            for (UUID uuid : session.getMembers()) {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
                     try {
