@@ -264,7 +264,7 @@ public class FloorGenerator {
             org.bukkit.block.Block button = world.getBlockAt(wallX - 1, baseY + 2, originZ + oz);
             button.setType(Material.STONE_BUTTON, false);
             org.bukkit.block.data.type.Switch switchData = (org.bukkit.block.data.type.Switch) button.getBlockData();
-            switchData.setFacing(org.bukkit.block.BlockFace.EAST);
+            switchData.setFacing(org.bukkit.block.BlockFace.WEST); // 東壁(x+1)に取り付く＝西を向く
             button.setBlockData(switchData, false);
         } else {
             // 通常: エメラルド（次フロア）とゴールド（帰還）

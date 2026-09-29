@@ -53,6 +53,7 @@ public class GameManager {
         player.sendMessage("§6§lDUNGEON 開始! 出口を目指して進め!");
         plugin.getDungeonManager().setOnline(player.getUniqueId(), true);
         updateScoreboard(player);
+        applyModifierEffects(player, session.getModifier());
         startRunTasks(session, player);
 
         // 初期湧き（floor 0）
@@ -117,6 +118,8 @@ public class GameManager {
                 p.teleport(generator.getSpawnLocation(session.getWorld(), next));
                 p.sendMessage("§e=== " + next + "F ===  修飾子: " + session.getModifier().getDisplay());
                 if (rest) {
+                    p.setHealth(p.getMaxHealth());
+                    p.setFoodLevel(20);
                     p.sendMessage("§b休息フロア! 出口の石ボタンで強化を選択できます。");
                 }
                 if (boss) {

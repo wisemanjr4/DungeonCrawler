@@ -39,6 +39,9 @@ public class CustomMobManager {
         DifficultyManager difficulty = plugin.getDifficultyManager();
         int floor = session.getFloor();
         FloorModifier modifier = session.getModifier();
+        if (session.isRestFloor()) {
+            return; // 休息フロアは敵を湧かせない
+        }
         int count = difficulty.spawnCount(floor, modifier);
         int size = generator.getFloorSize();
         int originZ = generator.floorStartZ(floor);
@@ -117,7 +120,7 @@ public class CustomMobManager {
      */
     public void dynamicSpawn(Player player) {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
-        if (session == null) {
+        if (session == null || session.isRestFloor()) {
             return;
         }
         if (random.nextInt(15) != 0) {
