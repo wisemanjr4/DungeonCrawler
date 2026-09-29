@@ -30,6 +30,10 @@ public class ExtractionManager {
     public void tick(Player player) {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
         if (session == null) {
+            clearAll(player);
+            return;
+        }
+        if (session.isTransitioning()) {
             clear(player);
             return;
         }
@@ -80,13 +84,19 @@ public class ExtractionManager {
             } else {
                 plugin.getGameManager().extract(player);
             }
-            clear(player);
+            clearAll(player);
         }
     }
 
+    /** ブロックから外れた時の巻き戻し。撤退ラッシュはフロアにつき1回だけなので rushTriggered は残す。 */
     public void clear(Player player) {
         standingSince.remove(player.getUniqueId());
         warned.remove(player.getUniqueId());
+    }
+
+    /** 遷移・帰還の完了時、またはセッション終了時に、ラッシュ状態も含めて全て初期化する。 */
+    public void clearAll(Player player) {
+        clear(player);
         rushTriggered.remove(player.getUniqueId());
     }
 }

@@ -1,35 +1,33 @@
-const mineflayer = require('mineflayer');
-const rcon = require('./rcon');
-const fs = require('fs');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 出口フロー: 入室 → エメラルド(次フロア) → ゴールド(生還)
+const { connect, rcon, sleep, tp, dungeonWorld, enter, waitFor } = require('./lib');
 (async () => {
-  const bot = mineflayer.createBot({ host: '127.0.0.1', port: 25565, username: 'Tester', version: '1.19.4' });
-  const chat = [];
-  bot.on('message', m => { const t = m.toString(); chat.push(t); console.log('[chat]', t); });
-  bot.on('kicked', r => console.log('kicked', r));
-  await new Promise(r => bot.once('spawn', r));
-  await rcon('op Tester'); await sleep(500);
-  bot.chat('/dungeon enter'); await sleep(6000);
-  const world = fs.readdirSync(process.env.SERVER_DIR || '../server').filter(f => f.startsWith('dungeon_'))[0];
-  console.log('world', world);
-  const tp = (x, y, z) => rcon(`execute in minecraft:${world} run tp Tester ${x} ${y} ${z}`);
-  const p = bot.entity.position;
-  console.log('SPAWN', p.x.toFixed(1), p.y.toFixed(1), p.z.toFixed(1));
+  const bot = await connect('Tester');
+  const chat = []; bot.on('message', m => chat.push(m.toString()));
+  await enter(bot);
+  const world = dungeonWorld();
+  const p = () => bot.entity.position;
+  console.log('SPAWN', p().x.toFixed(1), p().y.toFixed(1), p().z.toFixed(1));
 
-  // 出口(エメラルド)へ: 部屋(9,9)中央 = (105.5, 65, 105.5)
-  console.log('tp emerald:', await tp(105.5, 65, 105.5));
-  await sleep(6000);
-  let q = bot.entity.position;
-  console.log('AFTER EMERALD', q.x.toFixed(1), q.y.toFixed(1), q.z.toFixed(1));
-  const advanced = chat.some(c => c.includes('=== 1F ==='));
-  console.log('advanced to 1F message:', advanced);
+  // 判定だけを見たいので、そのフロアの敵を掃除して、目的の床に立ち続ける
+  const clear = zc => rcon(`execute in minecraft:${world} positioned 55 66 ${zc} run kill @e[distance=..100,type=!player,type=!item]`);
+  // 撤退ラッシュで湧く敵は動きを止める（ノックバックで足場から外れるのを防ぎ、判定だけを見る）
+  const freeze = (x, z) => rcon(`execute in minecraft:${world} positioned ${x} 65 ${z} as @e[distance=..40,type=!player,type=!item] run data merge entity @s {NoAI:1b}`);
+  const hold = async (x, z, done, secs = 14) => {
+    for (let i = 0; i < secs * 2 && !done(); i++) { await tp('Tester', x, 65, z); await freeze(x, z); await sleep(500); }
+  };
 
-  // 次フロア(z+121)のゴールド(107.5,65,105.5+121)
-  console.log('tp gold:', await tp(107.5, 65, 226.5));
-  await sleep(7000);
+  await clear(55);
+  await hold(105.5, 105.5, () => p().z >= 121);
+  await sleep(1500);
+  console.log('AFTER EMERALD', p().x.toFixed(1), p().y.toFixed(1), p().z.toFixed(1));
+  console.log('advanced to 1F message:', chat.some(c => c.includes('=== 1F ===')));
+
+  await clear(55 + 121);
+  await hold(107.5, 226.5, () => p().y < 0);
+  await sleep(1000);
+  console.log('AFTER GOLD', p().x.toFixed(1), p().y.toFixed(1), p().z.toFixed(1));
   console.log('survived msg:', chat.some(c => c.includes('生還')));
-  q = bot.entity.position;
-  console.log('AFTER GOLD', q.x.toFixed(1), q.y.toFixed(1), q.z.toFixed(1));
-  bot.chat('/dungeon info'); await sleep(500);
+  bot.chat('/dungeon info'); await sleep(600);
+  console.log('left session:', chat.some(c => c.includes('ダンジョンに参加していません')));
   bot.quit(); await sleep(500); process.exit(0);
 })().catch(e => { console.log('ERR', e); process.exit(1); });

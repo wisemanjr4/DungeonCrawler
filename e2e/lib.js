@@ -16,4 +16,15 @@ async function connect(name) {
 const dungeonWorld = () => fs.readdirSync(process.env.SERVER_DIR || '../server').filter(f => f.startsWith('dungeon_'))
   .map(f => ({ f, t: fs.statSync((process.env.SERVER_DIR || '../server') + '/' + f).mtimeMs })).sort((a, b) => b.t - a.t)[0]?.f;
 const tp = (name, x, y, z) => rcon(`execute in minecraft:${dungeonWorld()} run tp ${name} ${x} ${y} ${z}`);
-module.exports = { connect, rcon, sleep, strip, dungeonWorld, tp };
+// 条件が満たされるまで待つ（固定sleepだと非同期生成の完了前に進んでしまう）
+async function waitFor(cond, timeout = 40000, step = 100) {
+  const t0 = Date.now();
+  while (!cond() && Date.now() - t0 < timeout) await sleep(step);
+  return cond();
+}
+// ボットは戦わないので、テスト中は敵に倒されないようダメージ耐性を付ける（/kill は貫通する）
+const godmode = name => rcon(`effect give ${name} minecraft:resistance 1000 4 true`);
+const enter = async bot => { bot.chat('/dungeon enter'); await waitFor(() => bot.entity.position.y > 0); await godmode(bot.username); await sleep(1500); };
+const waitZ = (bot, minZ) => waitFor(() => bot.entity.position.z >= minZ && bot.entity.position.y > 0).then(r => sleep(1200).then(() => r));
+const waitHub = bot => waitFor(() => bot.entity.position.y < 0).then(r => sleep(800).then(() => r));
+module.exports = { godmode, waitFor, enter, waitZ, waitHub, connect, rcon, sleep, strip, dungeonWorld, tp };

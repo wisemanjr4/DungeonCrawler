@@ -1,18 +1,10 @@
 package com.dungeoncrawler.dungeon;
 
 import com.dungeoncrawler.DepthCrawlerPlugin;
-import com.dungeoncrawler.maze.MazeGenerator;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
-import org.bukkit.block.data.BlockData;
-import org.bukkit.block.data.type.Slab;
-import org.bukkit.block.data.type.Stairs;
 
-import java.util.HashSet;
-import java.util.Set;
 
 public class FloorGenerator {
 
@@ -62,159 +54,53 @@ public class FloorGenerator {
 
     /**
      * 指定フロアを生成する。treasure=true で宝箱出現率が2倍になる（TREASURE修飾子）。
+     * 構造（床・壁・天井）は {@link VoidChunkGenerator} がチャンク生成時に書くため、
+     * ここでは装飾（宝箱・柱・出口・ボタン）だけを置く。
      */
     public void generate(World world, int floor, boolean restFloor, boolean bossFloor, boolean treasure) {
-        int size = getFloorSize();
+        VoidChunkGenerator generator = plugin.getDungeonManager().getGenerator(world);
+        if (generator == null) {
+            throw new IllegalStateException("ダンジョン用ジェネレーターがないワールドです: " + world.getName());
+        }
+        generator.plan(floor); // 構造を確定（チャンク生成前に決めておく）
+        decorate(world, floorStartZ(floor), restFloor, bossFloor, treasure);
+    }
+
+    /**
+     * 非同期版: フロア全体のチャンクを先にバックグラウンドで生成・読み込みしてから、
+     * メインスレッドで装飾を置き、onDone を呼ぶ。生成中もサーバーは止まらない。
+     */
+    public void generateAsync(World world, int floor, boolean restFloor, boolean bossFloor, boolean treasure,
+                              Runnable onDone) {
+        VoidChunkGenerator generator = plugin.getDungeonManager().getGenerator(world);
+        if (generator == null) {
+            throw new IllegalStateException("ダンジョン用ジェネレーターがないワールドです: " + world.getName());
+        }
+        generator.plan(floor);
         int originZ = floorStartZ(floor);
-
-        // 迷路生成
-        MazeGenerator maze = new MazeGenerator(grid);
-        maze.generate(0, 0);
-
-        // 基礎床（Y=63 石レンガ）
-        for (int x = 0; x < size; x++) {
-            for (int z = 0; z < size; z++) {
-                Block base = world.getBlockAt(x, baseY, originZ + z);
-                base.setType(Material.STONE_BRICKS, false);
+        int size = getFloorSize();
+        java.util.List<java.util.concurrent.CompletableFuture<?>> futures = new java.util.ArrayList<>();
+        for (int cx = 0; cx <= (size - 1) >> 4; cx++) {
+            for (int cz = originZ >> 4; cz <= (originZ + size - 1) >> 4; cz++) {
+                futures.add(world.getChunkAtAsync(cx, cz, true));
             }
         }
-
-        // 部屋の床（Y=64）
-        for (int gx = 0; gx < grid; gx++) {
-            for (int gz = 0; gz < grid; gz++) {
-                fillRoomFloor(world, gx, gz, originZ, maze);
-            }
-        }
-
-        // 壁（Y=65〜67）
-        for (int gx = 0; gx < grid; gx++) {
-            for (int gz = 0; gz < grid; gz++) {
-                buildRoomWalls(world, gx, gz, originZ, maze);
-            }
-        }
-
-        // 天井（Y=68）
-        for (int gx = 0; gx < grid; gx++) {
-            for (int gz = 0; gz < grid; gz++) {
-                buildCeiling(world, gx, gz, originZ);
-            }
-        }
-
-        // 外壁（全周）
-        buildOuterWall(world, size, originZ);
-
-        // 装飾
-        decorate(world, originZ, maze, restFloor, bossFloor, treasure);
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(new java.util.concurrent.CompletableFuture[0]))
+                .whenComplete((ok, err) -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (err != null) {
+                        plugin.getLogger().warning("フロア生成に失敗: " + err);
+                        return;
+                    }
+                    decorate(world, originZ, restFloor, bossFloor, treasure);
+                    onDone.run();
+                }));
     }
 
-    private void fillRoomFloor(World world, int gx, int gz, int originZ, MazeGenerator maze) {
-        int xStart = gx * cell;
-        int zStart = gz * cell;
-        Material floorMaterial = randomFloorMaterial();
+    private void decorate(World world, int originZ, boolean restFloor, boolean bossFloor, boolean treasure) {
+        int floorY = baseY + 1;      // 床面
+        int standY = baseY + 2;      // 床の上（宝箱・柱の最下段・ボタン）
 
-        for (int x = 1; x <= inner; x++) {
-            for (int z = 1; z <= inner; z++) {
-                Block b = world.getBlockAt(xStart + x, baseY + 1, originZ + zStart + z);
-                b.setType(floorMaterial, false);
-            }
-        }
-    }
-
-    private Material randomFloorMaterial() {
-        double r = Math.random();
-        if (r < 0.4) {
-            return Material.POLISHED_ANDESITE;
-        } else if (r < 0.75) {
-            return Material.STONE_BRICKS;
-        }
-        return Material.TERRACOTTA;
-    }
-
-    private void buildRoomWalls(World world, int gx, int gz, int originZ, MazeGenerator maze) {
-        int xStart = gx * cell;
-        int zStart = gz * cell;
-
-        // 左壁（x = xStart）
-        for (int z = 1; z <= inner; z++) {
-            if (gx > 0 && !maze.hasWallBetween(gx, gz, gx - 1, gz)) {
-                // 通路3ブロック
-                if (z >= inner / 2 && z <= inner / 2 + 2) {
-                    continue;
-                }
-            }
-            buildWallColumn(world, xStart, originZ + zStart + z);
-        }
-        // 右壁（x = xStart + inner + 1）
-        for (int z = 1; z <= inner; z++) {
-            if (gx < grid - 1 && !maze.hasWallBetween(gx, gz, gx + 1, gz)) {
-                if (z >= inner / 2 && z <= inner / 2 + 2) {
-                    continue;
-                }
-            }
-            buildWallColumn(world, xStart + inner + 1, originZ + zStart + z);
-        }
-        // 手前壁（z = zStart）
-        for (int x = 1; x <= inner; x++) {
-            if (gz > 0 && !maze.hasWallBetween(gx, gz, gx, gz - 1)) {
-                if (x >= inner / 2 && x <= inner / 2 + 2) {
-                    continue;
-                }
-            }
-            buildWallRow(world, xStart + x, originZ + zStart);
-        }
-        // 奥壁（z = zStart + inner + 1）
-        for (int x = 1; x <= inner; x++) {
-            if (gz < grid - 1 && !maze.hasWallBetween(gx, gz, gx, gz + 1)) {
-                if (x >= inner / 2 && x <= inner / 2 + 2) {
-                    continue;
-                }
-            }
-            buildWallRow(world, xStart + x, originZ + zStart + inner + 1);
-        }
-    }
-
-    private void buildWallColumn(World world, int x, int z) {
-        for (int y = baseY + 1; y <= baseY + 3; y++) {
-            world.getBlockAt(x, y, z).setType(Material.STONE_BRICKS, false);
-        }
-    }
-
-    private void buildWallRow(World world, int x, int z) {
-        for (int y = baseY + 1; y <= baseY + 3; y++) {
-            world.getBlockAt(x, y, z).setType(Material.STONE_BRICKS, false);
-        }
-    }
-
-    private void buildCeiling(World world, int gx, int gz, int originZ) {
-        int xStart = gx * cell;
-        int zStart = gz * cell;
-        int ceilY = baseY + 4;
-
-        for (int x = 1; x <= inner; x++) {
-            for (int z = 1; z <= inner; z++) {
-                world.getBlockAt(xStart + x, ceilY, originZ + zStart + z).setType(Material.STONE_BRICKS, false);
-            }
-        }
-        // 四隅のグロウストーン
-        world.getBlockAt(xStart + 1, ceilY, originZ + zStart + 1).setType(Material.GLOWSTONE, false);
-        world.getBlockAt(xStart + inner, ceilY, originZ + zStart + 1).setType(Material.GLOWSTONE, false);
-        world.getBlockAt(xStart + 1, ceilY, originZ + zStart + inner).setType(Material.GLOWSTONE, false);
-        world.getBlockAt(xStart + inner, ceilY, originZ + zStart + inner).setType(Material.GLOWSTONE, false);
-    }
-
-    private void buildOuterWall(World world, int size, int originZ) {
-        for (int i = 0; i < size; i++) {
-            for (int y = baseY + 1; y <= baseY + 4; y++) {
-                world.getBlockAt(0, y, originZ + i).setType(Material.STONE_BRICKS, false);
-                world.getBlockAt(size - 1, y, originZ + i).setType(Material.STONE_BRICKS, false);
-                world.getBlockAt(i, y, originZ).setType(Material.STONE_BRICKS, false);
-                world.getBlockAt(i, y, originZ + size - 1).setType(Material.STONE_BRICKS, false);
-            }
-        }
-    }
-
-    private void decorate(World world, int originZ, MazeGenerator maze, boolean restFloor, boolean bossFloor, boolean treasure) {
-        // 宝箱配置（TREASURE修飾子で2倍）。ランダムな部屋に設置。
+        // 宝箱配置（TREASURE修飾子で2倍）。ランダムな部屋の中央の床の上に設置。
         double chestChance = treasure ? 0.30 : 0.15;
         for (int gx = 0; gx < grid; gx++) {
             for (int gz = 0; gz < grid; gz++) {
@@ -224,7 +110,7 @@ public class FloorGenerator {
                 if (Math.random() < chestChance) {
                     int cx = gx * cell + inner / 2 + 1;
                     int cz = gz * cell + inner / 2 + 1;
-                    world.getBlockAt(cx, baseY + 1, originZ + cz).setType(Material.CHEST, false);
+                    world.getBlockAt(cx, standY, originZ + cz).setType(Material.CHEST, false);
                 }
             }
         }
@@ -237,40 +123,37 @@ public class FloorGenerator {
                     int cx = gx * cell + inner / 2 + 1;
                     int cz = gz * cell + inner / 2 + 1;
                     // 柱はチェストと重なる場合スキップ
-                    if (world.getBlockAt(cx, baseY + 1, originZ + cz).getType() == Material.CHEST) {
+                    if (world.getBlockAt(cx, standY, originZ + cz).getType() == Material.CHEST) {
                         continue;
                     }
-                    for (int y = baseY + 1; y <= baseY + 3; y++) {
+                    for (int y = standY; y <= standY + 1; y++) {
                         world.getBlockAt(cx, y, originZ + cz).setType(Material.STONE_BRICKS, false);
                     }
-                    world.getBlockAt(cx, baseY + 4, originZ + cz).setType(Material.TORCH, false);
+                    world.getBlockAt(cx, standY + 2, originZ + cz).setType(Material.TORCH, false);
                 }
             }
         }
 
-        // 出口部屋（grid[9][9]）
-        int exitX = (grid - 1) * cell + inner / 2 + 1;
-        int exitZ = (grid - 1) * cell + inner / 2 + 1;
-        int ox = exitX;
-        int oz = exitZ;
+        // 出口部屋（右下の部屋）: エメラルド=次フロア、ゴールド=帰還（全フロア共通、仕様3.5）
+        int ox = (grid - 1) * cell + inner / 2 + 1;
+        int oz = (grid - 1) * cell + inner / 2 + 1;
+        world.getBlockAt(ox, floorY, originZ + oz).setType(Material.EMERALD_BLOCK, false);
+        world.getBlockAt(ox + 2, floorY, originZ + oz).setType(Material.GOLD_BLOCK, false);
 
         if (bossFloor) {
-            // 出口にレッドストーンブロック（BOSS）
-            world.getBlockAt(ox, baseY + 1, originZ + oz).setType(Material.REDSTONE_BLOCK, false);
-        } else if (restFloor) {
-            // 休息F: 出口にビーコン
-            world.getBlockAt(ox, baseY + 1, originZ + oz).setType(Material.EMERALD_BLOCK, false);
-            // 石ボタン（東壁に取り付け）
+            // BOSSフロアの目印: 出口部屋にレッドストーンブロック
+            world.getBlockAt(ox - 2, floorY, originZ + oz).setType(Material.REDSTONE_BLOCK, false);
+        }
+        if (restFloor) {
+            // 休息フロアの目印: ビーコン
+            world.getBlockAt(ox - 2, floorY, originZ + oz).setType(Material.BEACON, false);
+            // 石ボタン（東の外壁 x+1 に取り付け）→ アップグレードGUI
             int wallX = (grid - 1) * cell + inner + 1;
-            org.bukkit.block.Block button = world.getBlockAt(wallX - 1, baseY + 2, originZ + oz);
+            org.bukkit.block.Block button = world.getBlockAt(wallX - 1, standY, originZ + oz);
             button.setType(Material.STONE_BUTTON, false);
             org.bukkit.block.data.type.Switch switchData = (org.bukkit.block.data.type.Switch) button.getBlockData();
-            switchData.setFacing(org.bukkit.block.BlockFace.WEST); // 東壁(x+1)に取り付く＝西を向く
+            switchData.setFacing(org.bukkit.block.BlockFace.WEST); // 東壁に取り付く＝西を向く
             button.setBlockData(switchData, false);
-        } else {
-            // 通常: エメラルド（次フロア）とゴールド（帰還）
-            world.getBlockAt(ox, baseY + 1, originZ + oz).setType(Material.EMERALD_BLOCK, false);
-            world.getBlockAt(ox + 2, baseY + 1, originZ + oz).setType(Material.GOLD_BLOCK, false);
         }
     }
 

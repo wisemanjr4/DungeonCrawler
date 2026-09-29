@@ -18,11 +18,16 @@ public class DungeonManager {
     private final DepthCrawlerPlugin plugin;
     private final Map<UUID, DungeonSession> sessions; // leader -> session
     private final Map<UUID, DungeonSession> playerSession; // player -> session
+    private final Map<String, VoidChunkGenerator> generators = new ConcurrentHashMap<>(); // world名 -> 構造ジェネレーター
 
     public DungeonManager(DepthCrawlerPlugin plugin) {
         this.plugin = plugin;
         this.sessions = new ConcurrentHashMap<>();
         this.playerSession = new ConcurrentHashMap<>();
+    }
+
+    public VoidChunkGenerator getGenerator(World world) {
+        return world == null ? null : generators.get(world.getName());
     }
 
     public DungeonSession createSession(Player leader) {
@@ -51,10 +56,14 @@ public class DungeonManager {
         String name = "dungeon_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
         WorldCreator creator = new WorldCreator(name);
         creator.environment(World.Environment.NORMAL);
-        creator.generator(new VoidChunkGenerator());
+        var cfg = plugin.getDungeonConfig();
+        VoidChunkGenerator generator = new VoidChunkGenerator(cfg.getGridSize(), cfg.getRoomInnerSize(),
+                cfg.getFloorSpacing(), cfg.getBaseY());
+        creator.generator(generator);
         creator.generateStructures(false);
         World world = Bukkit.createWorld(creator);
         if (world != null) {
+            generators.put(world.getName(), generator);
             world.setGameRule(org.bukkit.GameRule.MOB_GRIEFING, plugin.getDungeonConfig().isMobGriefingEnabled());
             world.setGameRule(org.bukkit.GameRule.DO_FIRE_TICK, plugin.getDungeonConfig().isFireTickEnabled());
             // バニラの自然湧きは止め、湧き数はDifficultyManager（30+F×3）のみで管理する
@@ -87,6 +96,7 @@ public class DungeonManager {
                 for (org.bukkit.entity.Player p : world.getPlayers()) {
                     p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
                 }
+                generators.remove(world.getName());
                 if (Bukkit.unloadWorld(world, false)) {
                     deleteRecursively(folder);
                 }

@@ -19,3 +19,7 @@
 - `combat-weaponly.js` … 素の剣とWeaponly強化剣のダメージ比較
 - `restart-recovery-1.js` / `-2.js` … ダンジョン内ログアウト→`KEEP=1 ./restart.sh`→再ログイン
 - `restart.sh` … サーバー再起動（`KEEP=1`でプレイヤーデータ保持）。`../server/` に Paper がある前提
+- `structure-check.js` … 入室後、床/空間/天井の高さ・ドア口・角のグロウストーンを確認（仕様3.3）
+- `enter-latency.js` … 入室中のRCON応答遅延を測り、生成でサーバーが止まらないことを確認
+
+※ 入室・フロア移動はチャンクを非同期生成するため数秒かかる。スクリプトは固定sleepではなく `enter()` / `waitZ()` で到着を待つこと。

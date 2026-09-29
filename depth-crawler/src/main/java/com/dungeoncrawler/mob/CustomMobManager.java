@@ -52,7 +52,9 @@ public class CustomMobManager {
             for (int attempt = 0; attempt < 20; attempt++) {
                 int x = 1 + random.nextInt(size - 2);
                 int z = 1 + random.nextInt(size - 2);
-                if (isSpawnable(world, x, groundY, originZ + z)) {
+                // 開始部屋(0,0)はスポーン直後に囲まれないよう安全地帯にする
+                boolean startRoom = x <= generator.getCell() && z <= generator.getCell();
+                if (!startRoom && isSpawnable(world, x, groundY, originZ + z)) {
                     Location loc = new Location(world, x + 0.5, groundY + 1, originZ + z + 0.5);
                     spawnMob(world, loc, floor, modifier);
                     break;

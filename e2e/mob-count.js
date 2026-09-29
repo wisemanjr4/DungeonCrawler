@@ -1,7 +1,7 @@
-const { connect, rcon, sleep, dungeonWorld } = require('./lib');
+const { connect, rcon, sleep, dungeonWorld, enter } = require('./lib');
 (async () => {
   const bot = await connect('Tester');
-  bot.chat('/dungeon enter'); await sleep(4000);
+  await enter(bot);
   const w = dungeonWorld();
   const c = async sel => { const r = await rcon(`execute in minecraft:${w} positioned 55 66 55 if entity @e[distance=..90,${sel}]`); const m = r.match(/count: (\d+)/); return m ? +m[1] : 0; };
   console.log('world', w);

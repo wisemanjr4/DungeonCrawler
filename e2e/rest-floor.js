@@ -1,10 +1,10 @@
-const { connect, rcon, sleep, strip, dungeonWorld, tp } = require('./lib');
+const { connect, rcon, sleep, strip, dungeonWorld, tp, enter, waitZ } = require('./lib');
 (async () => {
   const bot = await connect('Tester');
-  bot.chat('/dungeon enter'); await sleep(5000);
+  await enter(bot);
   const zBase = f => f * 121;
   for (let f = 0; f < 5; f++) {          // F0→F5
-    await tp('Tester', 105.5, 65, 105.5 + zBase(f)); await sleep(5500);
+    await tp('Tester', 105.5, 65, 105.5 + zBase(f)); await waitZ(bot, zBase(f + 1));
     const p = bot.entity.position;
     console.log(`floor ${f + 1} arrived at z=${p.z.toFixed(1)} (expect ~${(6.5 + zBase(f + 1)).toFixed(1)})`);
   }
