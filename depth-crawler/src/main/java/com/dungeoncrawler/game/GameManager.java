@@ -23,6 +23,7 @@ public class GameManager {
 
     private final DepthCrawlerPlugin plugin;
     private final Map<UUID, Integer> runTaskIds = new HashMap<>();
+    private final Map<UUID, Integer> exitTaskIds = new HashMap<>();
     private final Map<UUID, Location> hubLocations = new HashMap<>();
     private final Set<UUID> inDungeon = new HashSet<>();
 
@@ -193,6 +194,7 @@ public class GameManager {
         if (session != null) {
             session.removeMember(player.getUniqueId());
             inDungeon.remove(player.getUniqueId());
+            plugin.getDungeonManager().detachPlayer(player.getUniqueId());
             if (session.getMembers().isEmpty()) {
                 endRun(session);
             }
@@ -218,9 +220,11 @@ public class GameManager {
         }
         session.removeMember(player.getUniqueId());
         inDungeon.remove(player.getUniqueId());
+        plugin.getDungeonManager().detachPlayer(player.getUniqueId());
         Location hub = hubLocations.remove(player.getUniqueId());
         player.teleport(hub != null ? hub : getDefaultHub());
         player.setGameMode(GameMode.SURVIVAL);
+        clearModifierEffects(player);
         plugin.getScoreboardManager().clear(player);
 
         if (session.getMembers().isEmpty()) {
@@ -240,6 +244,10 @@ public class GameManager {
         Integer taskId = runTaskIds.remove(session.getSessionId());
         if (taskId != null) {
             Bukkit.getScheduler().cancelTask(taskId);
+        }
+        Integer exitId = exitTaskIds.remove(session.getSessionId());
+        if (exitId != null) {
+            Bukkit.getScheduler().cancelTask(exitId);
         }
         plugin.getDungeonManager().removeSession(session);
     }
@@ -268,6 +276,10 @@ public class GameManager {
             Bukkit.getScheduler().cancelTask(id);
         }
         runTaskIds.clear();
+        for (int id : exitTaskIds.values()) {
+            Bukkit.getScheduler().cancelTask(id);
+        }
+        exitTaskIds.clear();
     }
 
     private void startRunTasks(DungeonSession session, Player leader) {
@@ -277,8 +289,11 @@ public class GameManager {
             for (UUID uuid : session.getMembers()) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
-                    plugin.getScoreboardManager().update(p);
-                    plugin.getExtractionManager().tick(p);
+                    try {
+                        plugin.getScoreboardManager().update(p);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("scoreboard update failed: " + e);
+                    }
                     // PLAGUE修飾子: 毎2秒1ダメージ
                     if (session.getModifier() == FloorModifier.PLAGUE && tickCounter[0] % 2 == 0) {
                         if (p.getHealth() > 1.0) {
@@ -289,14 +304,36 @@ public class GameManager {
             }
         }, 20L, 20L).getTaskId();
         runTaskIds.put(session.getSessionId(), tickId);
+        // 出口判定は高頻度で別タスク化（他処理の例外に巻き込まれない）
+        int exitId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (UUID uuid : session.getMembers()) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    try {
+                        plugin.getExtractionManager().tick(p);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("extraction tick failed: " + e);
+                    }
+                }
+            }
+        }, 5L, 5L).getTaskId();
+        exitTaskIds.put(session.getSessionId(), exitId);
+    }
+
+    private static final int MODIFIER_EFFECT_TICKS = 20 * 60 * 60;
+
+    /** フロア修飾子由来のポーション効果を除去する（フロア移動・退出時）。 */
+    private void clearModifierEffects(Player p) {
+        p.removePotionEffect(PotionEffectType.BLINDNESS);
+        p.removePotionEffect(PotionEffectType.SPEED);
     }
 
     private void applyModifierEffects(Player p, FloorModifier modifier) {
+        clearModifierEffects(p);
+        // WEAKNESS(プレイヤーATK-15%)はCombatListenerで倍率適用、REGENERATIONは敵側にのみ付与
         switch (modifier) {
-            case DARKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 20 * 60, 0));
-            case HASTE -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 60, 0));
-            case REGENERATION -> p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 20 * 60, 0));
-            case WEAKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 20 * 60, 0));
+            case DARKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, MODIFIER_EFFECT_TICKS, 0, false, false));
+            case HASTE -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, MODIFIER_EFFECT_TICKS, 0, false, false));
             default -> {
             }
         }

@@ -80,8 +80,6 @@ public class CustomMobManager {
     private void spawnEntity(World world, Location loc, EntityType type, boolean boss, int floor, FloorModifier modifier, boolean elite) {
         LivingEntity entity = (LivingEntity) world.spawnEntity(loc, type);
         double atkMult = modifier != null ? modifier.getAtkMult() : 1.0;
-        double defMult = modifier != null ? modifier.getDefMult() : 1.0;
-        double spdMult = modifier != null ? modifier.getSpdMult() : 1.0;
 
         double baseHp = 20.0 + (floor > 0 ? floor : 1) * 4.0;
         if (boss) {
@@ -94,24 +92,20 @@ public class CustomMobManager {
             entity.setCustomName("§d§lエリート");
             entity.setCustomNameVisible(true);
         }
-        entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(baseHp);
-        entity.setHealth(baseHp);
-        entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(5.0 * atkMult);
-        if (entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
-            entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.25 * spdMult);
+        if (entity.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+            entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(baseHp);
+        }
+        entity.setHealth(Math.min(baseHp, entity.getMaxHealth()));
+        // 攻撃力属性を持たない種別（スケルトン等）もあるためnullチェック
+        if (entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) {
+            entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(5.0 * atkMult);
         }
         // 種別マーキング（ドロップ判定用）
         entity.getPersistentDataContainer().set(MOB_KEY, PersistentDataType.INTEGER,
                 boss ? 2 : (elite ? 1 : 0));
         entity.getPersistentDataContainer().set(SPAWN_FLOOR, PersistentDataType.INTEGER, Math.max(1, floor));
-        if (modifier == FloorModifier.DARKNESS) {
-            entity.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false));
-        }
         if (modifier == FloorModifier.REGENERATION) {
             entity.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, Integer.MAX_VALUE, 0, false, false));
-        }
-        if (modifier == FloorModifier.HASTE) {
-            entity.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false));
         }
     }
 

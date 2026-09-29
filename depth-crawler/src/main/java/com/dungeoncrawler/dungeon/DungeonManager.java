@@ -76,16 +76,39 @@ public class DungeonManager {
         if (!sessions.containsKey(session.getLeaderId())) {
             return;
         }
-        for (UUID member : session.getMembers()) {
-            playerSession.remove(member);
-        }
+        // 既に退出済みのメンバーも含め、このセッションを指す全エントリを除去
+        playerSession.values().removeIf(v -> v == session);
         sessions.remove(session.getLeaderId());
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             World world = session.getWorld();
             if (world != null) {
-                Bukkit.unloadWorld(world, false);
+                java.io.File folder = world.getWorldFolder();
+                for (org.bukkit.entity.Player p : world.getPlayers()) {
+                    p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                if (Bukkit.unloadWorld(world, false)) {
+                    deleteRecursively(folder);
+                }
             }
         }, 40L);
+    }
+
+    /** プレイヤー単位でセッション紐付けを解除する（生還・死亡・脱退時）。 */
+    public void detachPlayer(UUID uuid) {
+        playerSession.remove(uuid);
+    }
+
+    private void deleteRecursively(java.io.File f) {
+        if (f == null || !f.exists()) {
+            return;
+        }
+        java.io.File[] children = f.listFiles();
+        if (children != null) {
+            for (java.io.File c : children) {
+                deleteRecursively(c);
+            }
+        }
+        f.delete();
     }
 
     public void handleDisconnect(Player player) {
