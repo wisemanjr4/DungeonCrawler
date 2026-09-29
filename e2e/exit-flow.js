@@ -10,7 +10,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   await new Promise(r => bot.once('spawn', r));
   await rcon('op Tester'); await sleep(500);
   bot.chat('/dungeon enter'); await sleep(6000);
-  const world = fs.readdirSync('../server').filter(f => f.startsWith('dungeon_'))[0];
+  const world = fs.readdirSync(process.env.SERVER_DIR || '../server').filter(f => f.startsWith('dungeon_'))[0];
   console.log('world', world);
   const tp = (x, y, z) => rcon(`execute in minecraft:${world} run tp Tester ${x} ${y} ${z}`);
   const p = bot.entity.position;
