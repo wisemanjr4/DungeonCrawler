@@ -51,13 +51,14 @@ public class DungeonManager {
         String name = "dungeon_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
         WorldCreator creator = new WorldCreator(name);
         creator.environment(World.Environment.NORMAL);
-        creator.type(WorldType.FLAT);
-        creator.generatorSettings("{\"layers\":[{\"block\":\"minecraft:stone\",\"height\":1}],\"biome\":\"minecraft:plains\"}");
+        creator.generator(new VoidChunkGenerator());
         creator.generateStructures(false);
         World world = Bukkit.createWorld(creator);
         if (world != null) {
             world.setGameRule(org.bukkit.GameRule.MOB_GRIEFING, plugin.getDungeonConfig().isMobGriefingEnabled());
             world.setGameRule(org.bukkit.GameRule.DO_FIRE_TICK, plugin.getDungeonConfig().isFireTickEnabled());
+            // バニラの自然湧きは止め、湧き数はDifficultyManager（30+F×3）のみで管理する
+            world.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
             world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
             world.setTime(6000);
         }

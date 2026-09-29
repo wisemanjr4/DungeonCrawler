@@ -16,6 +16,7 @@ public class PlayerData {
     private int totalRuns;
     private int successfulExtractions;
     private boolean mercyUsed;
+    private boolean inDungeon;
 
     private final List<SafeBoxSlot> safeBoxSlots;
     private final List<InsuranceEntry> insurance;
@@ -96,6 +97,14 @@ public class PlayerData {
         return mercyUsed;
     }
 
+    public boolean isInDungeon() {
+        return inDungeon;
+    }
+
+    public void setInDungeon(boolean inDungeon) {
+        this.inDungeon = inDungeon;
+    }
+
     public void setMercyUsed(boolean mercyUsed) {
         this.mercyUsed = mercyUsed;
     }
@@ -115,6 +124,7 @@ public class PlayerData {
         section.set("total-runs", totalRuns);
         section.set("successful-extractions", successfulExtractions);
         section.set("mercy-used", mercyUsed);
+        section.set("in-dungeon", inDungeon);
 
         List<String> serializedBox = new ArrayList<>();
         for (SafeBoxSlot slot : safeBoxSlots) {
@@ -137,6 +147,7 @@ public class PlayerData {
         data.totalRuns = section.getInt("total-runs", 0);
         data.successfulExtractions = section.getInt("successful-extractions", 0);
         data.mercyUsed = section.getBoolean("mercy-used", false);
+        data.inDungeon = section.getBoolean("in-dungeon", false);
 
         List<String> box = section.getStringList("safebox-slots");
         for (String entry : box) {

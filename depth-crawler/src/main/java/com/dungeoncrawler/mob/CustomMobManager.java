@@ -52,8 +52,7 @@ public class CustomMobManager {
             for (int attempt = 0; attempt < 20; attempt++) {
                 int x = 1 + random.nextInt(size - 2);
                 int z = 1 + random.nextInt(size - 2);
-                if (world.getBlockAt(x, groundY, originZ + z).getType().isAir()
-                        && world.getBlockAt(x, groundY + 1, originZ + z).getType().isAir()) {
+                if (isSpawnable(world, x, groundY, originZ + z)) {
                     Location loc = new Location(world, x + 0.5, groundY + 1, originZ + z + 0.5);
                     spawnMob(world, loc, floor, modifier);
                     break;
@@ -132,7 +131,8 @@ public class CustomMobManager {
         for (int attempt = 0; attempt < 10; attempt++) {
             int x = center.getBlockX() + random.nextInt(21) - 10;
             int z = center.getBlockZ() + random.nextInt(21) - 10;
-            if (center.getWorld().getBlockAt(x, groundY, z).getType().isAir()) {
+            boolean tooClose = Math.abs(x - center.getBlockX()) < 4 && Math.abs(z - center.getBlockZ()) < 4;
+            if (!tooClose && isSpawnable(center.getWorld(), x, groundY, z)) {
                 Location loc = new Location(center.getWorld(), x + 0.5, groundY + 1, z + 0.5);
                 spawnMob(center.getWorld(), loc, session.getFloor(), session.getModifier());
                 return;
@@ -151,13 +151,19 @@ public class CustomMobManager {
             for (int attempt = 0; attempt < 10; attempt++) {
                 int x = center.getBlockX() + random.nextInt(15) - 7;
                 int z = center.getBlockZ() + random.nextInt(15) - 7;
-                if (center.getWorld().getBlockAt(x, center.getBlockY() - 1, z).getType().isAir()
-                        && center.getWorld().getBlockAt(x, center.getBlockY(), z).getType().isAir()) {
+                if (isSpawnable(center.getWorld(), x, center.getBlockY() - 1, z)) {
                     Location loc = new Location(center.getWorld(), x + 0.5, center.getBlockY(), z + 0.5);
                     spawnMob(center.getWorld(), loc, Math.max(1, floor), modifier);
                     break;
                 }
             }
         }
+    }
+
+    /** 床が固体で、その上2マスが空気（湧いても壁や穴に埋まらない）。 */
+    private static boolean isSpawnable(World world, int x, int floorY, int z) {
+        return world.getBlockAt(x, floorY, z).getType().isSolid()
+                && world.getBlockAt(x, floorY + 1, z).getType().isAir()
+                && world.getBlockAt(x, floorY + 2, z).getType().isAir();
     }
 }

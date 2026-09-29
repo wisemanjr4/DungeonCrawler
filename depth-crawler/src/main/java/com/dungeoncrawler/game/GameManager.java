@@ -49,6 +49,7 @@ public class GameManager {
         player.setGameMode(GameMode.ADVENTURE);
         hubLocations.put(player.getUniqueId(), player.getLocation());
         inDungeon.add(player.getUniqueId());
+        plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(true);
         player.teleport(manager.getSpawn(session));
         player.sendMessage("§6§lDUNGEON 開始! 出口を目指して進め!");
         plugin.getDungeonManager().setOnline(player.getUniqueId(), true);
@@ -197,6 +198,7 @@ public class GameManager {
         if (session != null) {
             session.removeMember(player.getUniqueId());
             inDungeon.remove(player.getUniqueId());
+            plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(false);
             plugin.getDungeonManager().detachPlayer(player.getUniqueId());
             if (session.getMembers().isEmpty()) {
                 endRun(session);
@@ -223,6 +225,7 @@ public class GameManager {
         }
         session.removeMember(player.getUniqueId());
         inDungeon.remove(player.getUniqueId());
+        plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(false);
         plugin.getDungeonManager().detachPlayer(player.getUniqueId());
         Location hub = hubLocations.remove(player.getUniqueId());
         player.teleport(hub != null ? hub : getDefaultHub());
