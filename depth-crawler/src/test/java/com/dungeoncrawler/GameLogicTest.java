@@ -35,6 +35,16 @@ class GameLogicTest {
     }
 
     @Test
+    void bossPoolExcludesEnderDragon() {
+        assertFalse(DifficultyManager.BOSS_POOL.contains(org.bukkit.entity.EntityType.ENDER_DRAGON));
+        assertEquals(9, DifficultyManager.BOSS_POOL.size());
+        DifficultyManager d = new DifficultyManager(null);
+        for (int i = 0; i < 500; i++) {
+            assertTrue(DifficultyManager.BOSS_POOL.contains(d.randomBoss()));
+        }
+    }
+
+    @Test
     void modifierMultipliersMatchSpec() {
         assertEquals(1.3, FloorModifier.BERSERK.getAtkMult());
         assertEquals(1.25, FloorModifier.FORTIFIED.getDefMult());

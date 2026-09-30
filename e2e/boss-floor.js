@@ -18,7 +18,7 @@ const nameOf = it => { try { return parse(it.nbt.value.display.value.Name.value)
   console.log('msgs:', log.filter(l => /BOSS|休息|=== 10F/.test(l)).join(' | '));
   const zc = 55 + 1210;
   const q = sel => rcon(`execute in minecraft:${w} positioned 55 66 ${zc} if entity @e[distance=..120,${sel}]`);
-  const bosses = ['iron_golem','zombie','enderman','ravager','wither','warden','evoker','piglin_brute','elder_guardian','ender_dragon'];
+  const bosses = ['iron_golem','zombie','enderman','ravager','wither','warden','evoker','piglin_brute','elder_guardian'];
   let bossType = null;
   for (const t of bosses) { const r = await q(`type=${t},nbt={CustomNameVisible:1b}`); if (/count/.test(r)) { bossType = t; console.log('BOSS entity:', t, '|', r); } }
   const total = await q('type=!player,type=!item');
@@ -33,7 +33,7 @@ const nameOf = it => { try { return parse(it.nbt.value.display.value.Name.value)
     const snap = () => bot.inventory.items().map(i => i.name + '|' + (nameOf(i) || '') + '|' + i.count);
     const beforeKill = snap();
     console.log('kill boss:', await rcon(`execute in minecraft:${w} positioned 55 66 ${zc} run kill @e[type=${bossType},distance=..120,nbt={CustomNameVisible:1b}]`));
-    await sleep(bossType === 'ender_dragon' ? 14000 : 1500);   // ドラゴンは死亡アニメーション後にドロップ
+    await sleep(1500);
     for (let i = 0; i < 4; i++) { await rcon(`execute in minecraft:${w} positioned ${bx} ${by} ${bz} run tp @e[distance=..8,type=item] Tester`); await sleep(1300); }
     const after = snap(); const pool = [...beforeKill];
     const fresh = after.filter(x => { const k = pool.indexOf(x); if (k >= 0) { pool.splice(k, 1); return false; } return true; });
