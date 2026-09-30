@@ -142,7 +142,7 @@ public class FloorGenerator {
 
         if (bossFloor) {
             // BOSSフロアの目印: 出口部屋にレッドストーンブロック
-            world.getBlockAt(ox - 2, floorY, originZ + oz).setType(Material.REDSTONE_BLOCK, false);
+            world.getBlockAt(ox - 4, floorY, originZ + oz).setType(Material.REDSTONE_BLOCK, false); // 休息と重なるF10でもビーコンと被らない位置
         }
         if (restFloor) {
             // 休息フロアの目印: ビーコン

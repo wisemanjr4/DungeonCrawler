@@ -179,7 +179,7 @@ public class DungeonListener implements Listener {
         // ブラックマーケット
         if (title.equals(com.dungeoncrawler.npc.BlackMarketManager.TITLE)) {
             event.setCancelled(true);
-            plugin.getBlackMarketManager().handleBuyClick(player, event.getCurrentItem());
+            plugin.getBlackMarketManager().handleBuyClick(player, event.getRawSlot());
             return;
         }
         // 救助班

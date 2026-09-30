@@ -14,7 +14,7 @@ async function connect(name) {
   return bot;
 }
 const dungeonWorld = () => fs.readdirSync(process.env.SERVER_DIR || '../server').filter(f => f.startsWith('dungeon_'))
-  .map(f => ({ f, t: fs.statSync((process.env.SERVER_DIR || '../server') + '/' + f).mtimeMs })).sort((a, b) => b.t - a.t)[0]?.f;
+  .map(f => ({ f, t: fs.statSync('../server/' + f).mtimeMs })).sort((a, b) => b.t - a.t)[0]?.f;
 const tp = (name, x, y, z) => rcon(`execute in minecraft:${dungeonWorld()} run tp ${name} ${x} ${y} ${z}`);
 // 条件が満たされるまで待つ（固定sleepだと非同期生成の完了前に進んでしまう）
 async function waitFor(cond, timeout = 40000, step = 100) {

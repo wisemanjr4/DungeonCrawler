@@ -114,44 +114,28 @@ public class BlackMarketManager {
     }
 
     /**
-     * 購入処理。返り値: 処理したか
+     * 購入処理。クリックしたスロット番号で在庫を特定する（表示用のコピーは値札ロアが付くため、
+     * アイテムの見た目での照合は同名・メタ無しのアイテムで誤る）。返り値: 処理したか
      */
-    public boolean handleBuyClick(Player player, ItemStack clicked) {
-        if (clicked == null) {
+    public boolean handleBuyClick(Player player, int slot) {
+        if (slot < 0 || slot >= 45 || slot >= stock.size()) {
             return false;
         }
-        // 在庫の中から一致するアイテムを探す
-        for (BlackMarketItem entry : stock) {
-            ItemStack stocked = entry.getItem();
-            if (stocked.getType() == clicked.getType()
-                    && stocked.getAmount() == clicked.getAmount()
-                    && areMetaEqual(stocked, clicked)) {
-                var data = plugin.getPlayerDataManager().get(player.getUniqueId());
-                if (!data.hasBalance(entry.getPrice())) {
-                    player.sendMessage(ChatColor.RED + "所持金が不足しています。");
-                    return true;
-                }
-                data.deductBalance(entry.getPrice());
-                player.getInventory().addItem(entry.getItem().clone());
-                stock.remove(entry);
-                player.sendMessage(ChatColor.GREEN + "購入しました: " + (entry.getItem().hasItemMeta() && entry.getItem().getItemMeta().hasDisplayName()
-                        ? entry.getItem().getItemMeta().getDisplayName() : entry.getItem().getType().name()));
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean areMetaEqual(ItemStack a, ItemStack b) {
-        if (a.hasItemMeta() != b.hasItemMeta()) {
-            return false;
-        }
-        if (!a.hasItemMeta()) {
+        BlackMarketItem entry = stock.get(slot);
+        var data = plugin.getPlayerDataManager().get(player.getUniqueId());
+        if (!data.hasBalance(entry.getPrice())) {
+            player.sendMessage(ChatColor.RED + "所持金が不足しています。");
             return true;
         }
-        String da = a.getItemMeta().getDisplayName();
-        String db = b.getItemMeta().getDisplayName();
-        return (da == null ? "" : da).equals(db == null ? "" : db);
+        data.deductBalance(entry.getPrice());
+        stock.remove(entry);
+        player.getInventory().addItem(entry.getItem().clone()).values()
+                .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+        player.sendMessage(ChatColor.GREEN + "購入しました: " + (entry.getItem().hasItemMeta() && entry.getItem().getItemMeta().hasDisplayName()
+                ? entry.getItem().getItemMeta().getDisplayName() : entry.getItem().getType().name()));
+        // 在庫が変わったので開き直して表示を更新する
+        openMenu(player);
+        return true;
     }
 
     private static class ItemRegistryProxy {

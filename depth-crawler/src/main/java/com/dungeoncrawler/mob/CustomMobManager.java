@@ -66,9 +66,10 @@ public class CustomMobManager {
     /**
      * BOSSスポーン。
      */
-    public void spawnBoss(World world, Location location) {
+    public void spawnBoss(World world, Location location, int floor) {
         EntityType boss = plugin.getDifficultyManager().randomBoss();
-        spawnEntity(world, location, boss, true, 50, null);
+        // floor はドロップのティア（MobDropListener が SPAWN_FLOOR から読む）に使われる
+        spawnEntity(world, location, boss, true, Math.max(1, floor), null);
     }
 
     public void spawnMob(World world, Location loc, int floor, FloorModifier modifier) {
