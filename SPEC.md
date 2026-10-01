@@ -554,6 +554,18 @@ player:
   max-safe-box-slots: 54
 shop:
   reforge-cost: 100.0
+# 難易度バランス（未設定なら下記の既定値）
+difficulty:
+  base-mob-count: 30          # 初期湧き数 = base + F × per-floor
+  mob-count-per-floor: 3
+  mob-base-hp: 20.0           # 通常MOBのHP = base + F × per-floor
+  mob-hp-per-floor: 4.0
+  mob-base-attack: 5.0
+  boss-hp: 200.0
+  elite-hp-multiplier: 2.5
+  elite-attack-multiplier: 1.4
+  extraction-rush-mobs: 6     # ゴールド上で湧く数（フロアにつき1回）
+  dynamic-spawn-odds: 15      # 2秒ごとに 1/N の確率で1体追加
 ```
 
 ### 15.2 rooms.yml（管理者が部屋登録時に自動生成）

@@ -30,3 +30,4 @@
 - `insurance-claim-after-expiry.js` + `expire-insurance.sh` … 期限を過去にして再起動し、`/dungeon claim` で返還・二重回収不可
 - `boss-floor.js` … F10まで進み、ボス（200HP）の出現・撃破・ドロップ（ティアは階層に応じる）。※ボスは毎回ランダム（エンダードラゴンは巨大すぎるため候補から除外）
 - `blackmarket-persist.js` … `insurance-blackmarket.js` の後に `KEEP=1 ./restart.sh` してから実行し、ブラックマーケットの在庫が再起動後も残ることを確認
+- `mob-types.js` … F0の湧き内訳（種別ごとの数）と合計

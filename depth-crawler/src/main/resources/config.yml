@@ -22,3 +22,15 @@ insurance:
 world:
   mob-griefing: false
   do-fire-tick: false
+# 難易度バランス（既定値＝従来の挙動）
+difficulty:
+  base-mob-count: 30          # フロアの初期湧き数 = base + F × per-floor
+  mob-count-per-floor: 3
+  mob-base-hp: 20.0           # 通常MOBのHP = base + F × per-floor
+  mob-hp-per-floor: 4.0
+  mob-base-attack: 5.0        # 攻撃力属性を持つMOBの基礎攻撃力（フロア修飾子の倍率が掛かる）
+  boss-hp: 200.0
+  elite-hp-multiplier: 2.5
+  elite-attack-multiplier: 1.4
+  extraction-rush-mobs: 6     # ゴールドに乗った時に湧く数（フロアにつき1回）
+  dynamic-spawn-odds: 15      # 2秒ごとに 1/N の確率で1体追加（大きいほど湧きにくい）

@@ -86,14 +86,15 @@ public class CustomMobManager {
         LivingEntity entity = (LivingEntity) world.spawnEntity(loc, type);
         double atkMult = modifier != null ? modifier.getAtkMult() : 1.0;
 
-        double baseHp = 20.0 + (floor > 0 ? floor : 1) * 4.0;
+        var cfg = plugin.getDungeonConfig();
+        double baseHp = cfg.getMobBaseHp() + (floor > 0 ? floor : 1) * cfg.getMobHpPerFloor();
         if (boss) {
-            baseHp = 200.0;
+            baseHp = cfg.getBossHp();
             entity.setCustomName("§c§lBOSS");
             entity.setCustomNameVisible(true);
         } else if (elite) {
-            baseHp *= 2.5;
-            atkMult *= 1.4;
+            baseHp *= cfg.getEliteHpMultiplier();
+            atkMult *= cfg.getEliteAttackMultiplier();
             entity.setCustomName("§d§lエリート");
             entity.setCustomNameVisible(true);
         }
@@ -103,7 +104,7 @@ public class CustomMobManager {
         entity.setHealth(Math.min(baseHp, entity.getMaxHealth()));
         // 攻撃力属性を持たない種別（スケルトン等）もあるためnullチェック
         if (entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) {
-            entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(5.0 * atkMult);
+            entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(cfg.getMobBaseAttack() * atkMult);
         }
         // 種別マーキング（ドロップ判定用）
         entity.getPersistentDataContainer().set(MOB_KEY, PersistentDataType.INTEGER,
@@ -125,7 +126,7 @@ public class CustomMobManager {
         if (session == null || session.isRestFloor()) {
             return;
         }
-        if (random.nextInt(15) != 0) {
+        if (random.nextInt(plugin.getDungeonConfig().getDynamicSpawnOdds()) != 0) {
             return;
         }
         FloorGenerator generator = new FloorGenerator(plugin);
@@ -150,7 +151,7 @@ public class CustomMobManager {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
         FloorModifier modifier = session != null ? session.getModifier() : null;
         Location center = player.getLocation();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < plugin.getDungeonConfig().getExtractionRushMobs(); i++) {
             for (int attempt = 0; attempt < 10; attempt++) {
                 int x = center.getBlockX() + random.nextInt(15) - 7;
                 int z = center.getBlockZ() + random.nextInt(15) - 7;

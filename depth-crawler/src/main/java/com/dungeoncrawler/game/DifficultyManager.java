@@ -18,7 +18,10 @@ public class DifficultyManager {
     }
 
     public int spawnCount(int floor, FloorModifier modifier) {
-        int count = 30 + floor * 3;
+        // plugin==null は単体テスト用（従来値）
+        int base = plugin != null ? plugin.getDungeonConfig().getBaseMobCount() : 30;
+        int perFloor = plugin != null ? plugin.getDungeonConfig().getMobCountPerFloor() : 3;
+        int count = base + floor * perFloor;
         if (modifier == FloorModifier.SWARM) {
             count = (int) (count * 1.5);
         }
