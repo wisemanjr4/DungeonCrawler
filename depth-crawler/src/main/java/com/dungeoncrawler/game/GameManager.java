@@ -23,6 +23,7 @@ public class GameManager {
 
     private final DepthCrawlerPlugin plugin;
     private final Map<UUID, Integer> runTaskIds = new HashMap<>();
+    private final Map<UUID, Integer> exitTaskIds = new HashMap<>();
     private final Map<UUID, Location> hubLocations = new HashMap<>();
     private final Set<UUID> inDungeon = new HashSet<>();
 
@@ -43,30 +44,41 @@ public class GameManager {
         DungeonSession session = manager.createSession(player);
         FloorGenerator generator = new FloorGenerator(plugin);
         boolean treasure = session.getModifier() == FloorModifier.TREASURE;
-        generator.generate(session.getWorld(), 0, false, false, treasure);
-
-        player.setGameMode(GameMode.ADVENTURE);
-        hubLocations.put(player.getUniqueId(), player.getLocation());
-        inDungeon.add(player.getUniqueId());
-        player.teleport(manager.getSpawn(session));
-        player.sendMessage("§6§lDUNGEON 開始! 出口を目指して進め!");
-        plugin.getDungeonManager().setOnline(player.getUniqueId(), true);
-        updateScoreboard(player);
-        startRunTasks(session, player);
-
-        // 初期湧き（floor 0）
-        plugin.getCustomMobManager().spawnInitialMobs(session);
-
-        // パーティメンバーを一緒にTP
-        Party party = plugin.getPartyManager().getParty(player.getUniqueId());
-        if (party != null) {
-            for (Player member : plugin.getPartyManager().onlineMembers(party)) {
-                if (member.getUniqueId().equals(player.getUniqueId())) {
-                    continue;
-                }
-                joinSessionTeleport(session, member);
+        session.setTransitioning(true);
+        player.sendMessage("§7ダンジョンを生成中...");
+        generator.generateAsync(session.getWorld(), 0, false, false, treasure, () -> {
+            session.setTransitioning(false);
+            if (!player.isOnline()) {
+                // 生成中に切断された: セッションを破棄
+                manager.detachPlayer(player.getUniqueId());
+                endRun(session);
+                return;
             }
-        }
+            player.setGameMode(GameMode.ADVENTURE);
+            hubLocations.put(player.getUniqueId(), player.getLocation());
+            inDungeon.add(player.getUniqueId());
+            plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(true);
+            player.teleport(manager.getSpawn(session));
+            player.sendMessage("§6§lDUNGEON 開始! 出口を目指して進め!");
+            manager.setOnline(player.getUniqueId(), true);
+            updateScoreboard(player);
+            applyModifierEffects(player, session.getModifier());
+            startRunTasks(session, player);
+
+            // 初期湧き（floor 0）
+            plugin.getCustomMobManager().spawnInitialMobs(session);
+
+            // パーティメンバーを一緒にTP
+            Party party = plugin.getPartyManager().getParty(player.getUniqueId());
+            if (party != null) {
+                for (Player member : plugin.getPartyManager().onlineMembers(party)) {
+                    if (member.getUniqueId().equals(player.getUniqueId())) {
+                        continue;
+                    }
+                    joinSessionTeleport(session, member);
+                }
+            }
+        });
     }
 
     private void joinSessionTeleport(DungeonSession session, Player member) {
@@ -96,39 +108,55 @@ public class GameManager {
      */
     public void advanceFloor(Player player) {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
-        if (session == null) {
+        if (session == null || session.isTransitioning()) {
             return;
         }
         int next = session.getFloor() + 1;
-        session.setFloor(next);
-        session.setModifier(FloorModifier.random());
-        session.setState(GameState.EXPLORING);
+        FloorModifier modifier = FloorModifier.random();
+        boolean rest = next > 0 && next % 5 == 0;
+        boolean boss = next > 0 && next % 10 == 0;
+        boolean treasure = modifier == FloorModifier.TREASURE;
 
-        FloorGenerator generator = new FloorGenerator(plugin);
-        boolean rest = session.isRestFloor();
-        boolean boss = session.isBossFloor();
-        boolean treasure = session.getModifier() == FloorModifier.TREASURE;
-        generator.generate(session.getWorld(), next, rest, boss, treasure);
-
-        for (UUID uuid : session.getMembers()) {
+        session.setTransitioning(true);
+        for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
             Player p = Bukkit.getPlayer(uuid);
             if (p != null && p.isOnline()) {
-                p.teleport(generator.getSpawnLocation(session.getWorld(), next));
-                p.sendMessage("§e=== " + next + "F ===  修飾子: " + session.getModifier().getDisplay());
-                if (rest) {
-                    p.sendMessage("§b休息フロア! 出口の石ボタンで強化を選択できます。");
-                }
-                if (boss) {
-                    p.sendMessage("§c§lBOSSフロア! 注意せよ!");
-                }
-                applyModifierEffects(p, session.getModifier());
-                updateScoreboard(p);
+                p.sendMessage("§7次のフロアを生成中...");
             }
         }
-        if (boss) {
-            plugin.getCustomMobManager().spawnBoss(session.getWorld(), generator.getSpawnLocation(session.getWorld(), next));
-        }
-        plugin.getCustomMobManager().spawnInitialMobs(session);
+        FloorGenerator generator = new FloorGenerator(plugin);
+        generator.generateAsync(session.getWorld(), next, rest, boss, treasure, () -> {
+            session.setTransitioning(false);
+            if (session.getMembers().isEmpty()) {
+                return; // 生成中に全員が退出・死亡した
+            }
+            session.setFloor(next);
+            session.setModifier(modifier);
+            session.setState(GameState.EXPLORING);
+
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    p.teleport(generator.getSpawnLocation(session.getWorld(), next));
+                    p.sendMessage("§e=== " + next + "F ===  修飾子: " + modifier.getDisplay());
+                    if (rest) {
+                        p.setHealth(p.getMaxHealth());
+                        p.setFoodLevel(20);
+                        p.sendMessage("§b休息フロア! 出口の石ボタンで強化を選択できます。");
+                    }
+                    if (boss) {
+                        p.sendMessage("§c§lBOSSフロア! 注意せよ!");
+                    }
+                    applyModifierEffects(p, modifier);
+                    updateScoreboard(p);
+                }
+            }
+            if (boss) {
+                plugin.getCustomMobManager().spawnBoss(session.getWorld(),
+                        generator.getExitLocation(session.getWorld(), next).add(-3, 0, 0), next);
+            }
+            plugin.getCustomMobManager().spawnInitialMobs(session);
+        });
     }
 
     /**
@@ -193,6 +221,8 @@ public class GameManager {
         if (session != null) {
             session.removeMember(player.getUniqueId());
             inDungeon.remove(player.getUniqueId());
+            plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(false);
+            plugin.getDungeonManager().detachPlayer(player.getUniqueId());
             if (session.getMembers().isEmpty()) {
                 endRun(session);
             }
@@ -218,16 +248,19 @@ public class GameManager {
         }
         session.removeMember(player.getUniqueId());
         inDungeon.remove(player.getUniqueId());
+        plugin.getPlayerDataManager().get(player.getUniqueId()).setInDungeon(false);
+        plugin.getDungeonManager().detachPlayer(player.getUniqueId());
         Location hub = hubLocations.remove(player.getUniqueId());
         player.teleport(hub != null ? hub : getDefaultHub());
         player.setGameMode(GameMode.SURVIVAL);
+        clearModifierEffects(player);
         plugin.getScoreboardManager().clear(player);
 
         if (session.getMembers().isEmpty()) {
             endRun(session);
         } else {
             // 残りメンバーに通知
-            for (UUID uuid : session.getMembers()) {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
                     p.sendMessage("§e" + player.getName() + " が生還しました。");
@@ -240,6 +273,10 @@ public class GameManager {
         Integer taskId = runTaskIds.remove(session.getSessionId());
         if (taskId != null) {
             Bukkit.getScheduler().cancelTask(taskId);
+        }
+        Integer exitId = exitTaskIds.remove(session.getSessionId());
+        if (exitId != null) {
+            Bukkit.getScheduler().cancelTask(exitId);
         }
         plugin.getDungeonManager().removeSession(session);
     }
@@ -268,17 +305,24 @@ public class GameManager {
             Bukkit.getScheduler().cancelTask(id);
         }
         runTaskIds.clear();
+        for (int id : exitTaskIds.values()) {
+            Bukkit.getScheduler().cancelTask(id);
+        }
+        exitTaskIds.clear();
     }
 
     private void startRunTasks(DungeonSession session, Player leader) {
         int[] tickCounter = {0};
         int tickId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             tickCounter[0]++;
-            for (UUID uuid : session.getMembers()) {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
                 Player p = Bukkit.getPlayer(uuid);
                 if (p != null && p.isOnline()) {
-                    plugin.getScoreboardManager().update(p);
-                    plugin.getExtractionManager().tick(p);
+                    try {
+                        plugin.getScoreboardManager().update(p);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("scoreboard update failed: " + e);
+                    }
                     // PLAGUE修飾子: 毎2秒1ダメージ
                     if (session.getModifier() == FloorModifier.PLAGUE && tickCounter[0] % 2 == 0) {
                         if (p.getHealth() > 1.0) {
@@ -289,14 +333,36 @@ public class GameManager {
             }
         }, 20L, 20L).getTaskId();
         runTaskIds.put(session.getSessionId(), tickId);
+        // 出口判定は高頻度で別タスク化（他処理の例外に巻き込まれない）
+        int exitId = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (UUID uuid : new java.util.ArrayList<>(session.getMembers())) {
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    try {
+                        plugin.getExtractionManager().tick(p);
+                    } catch (Exception e) {
+                        plugin.getLogger().warning("extraction tick failed: " + e);
+                    }
+                }
+            }
+        }, 5L, 5L).getTaskId();
+        exitTaskIds.put(session.getSessionId(), exitId);
+    }
+
+    private static final int MODIFIER_EFFECT_TICKS = 20 * 60 * 60;
+
+    /** フロア修飾子由来のポーション効果を除去する（フロア移動・退出時）。 */
+    private void clearModifierEffects(Player p) {
+        p.removePotionEffect(PotionEffectType.BLINDNESS);
+        p.removePotionEffect(PotionEffectType.SPEED);
     }
 
     private void applyModifierEffects(Player p, FloorModifier modifier) {
+        clearModifierEffects(p);
+        // WEAKNESS(プレイヤーATK-15%)はCombatListenerで倍率適用、REGENERATIONは敵側にのみ付与
         switch (modifier) {
-            case DARKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 20 * 60, 0));
-            case HASTE -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 60, 0));
-            case REGENERATION -> p.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 20 * 60, 0));
-            case WEAKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.WEAKNESS, 20 * 60, 0));
+            case DARKNESS -> p.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, MODIFIER_EFFECT_TICKS, 0, false, false));
+            case HASTE -> p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, MODIFIER_EFFECT_TICKS, 0, false, false));
             default -> {
             }
         }

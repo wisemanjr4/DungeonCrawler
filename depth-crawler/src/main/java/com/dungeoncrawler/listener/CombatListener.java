@@ -27,6 +27,9 @@ public class CombatListener implements Listener {
     private final DepthCrawlerPlugin plugin;
     private final Random random = new Random();
 
+    /** 連鎖・爆発など二次ダメージが本ハンドラを再帰的に呼ばないためのガード。 */
+    private boolean processing = false;
+
     public CombatListener(DepthCrawlerPlugin plugin) {
         this.plugin = plugin;
     }
@@ -42,7 +45,18 @@ public class CombatListener implements Listener {
         if (!(event.getEntity() instanceof LivingEntity target)) {
             return;
         }
+        if (processing) {
+            return;
+        }
+        processing = true;
+        try {
+            handlePlayerAttack(event, player, target);
+        } finally {
+            processing = false;
+        }
+    }
 
+    private void handlePlayerAttack(EntityDamageByEntityEvent event, Player player, LivingEntity target) {
         ItemStack hand = player.getInventory().getItemInMainHand();
         NameStats stats = statsOf(hand);
         double damage = event.getDamage();
@@ -54,6 +68,13 @@ public class CombatListener implements Listener {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
         if (session != null) {
             damage *= attackUpgradeMultiplier(session);
+            // フロア修飾子: 要塞=敵DEF、脆弱=プレイヤーATK-15%
+            if (!(target instanceof Player)) {
+                damage /= Math.max(0.1, session.getModifier().getDefMult());
+            }
+            if (session.getModifier() == com.dungeoncrawler.game.FloorModifier.WEAKNESS) {
+                damage *= 0.85;
+            }
             // 二段攻撃: 20%で追撃
             if (session.getUpgradeLevel(UpgradeType.DOUBLE_ATTACK) > 0 && random.nextDouble() < 0.20) {
                 damage *= 2.0;

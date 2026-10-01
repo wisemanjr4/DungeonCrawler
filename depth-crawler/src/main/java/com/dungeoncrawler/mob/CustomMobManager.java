@@ -39,6 +39,9 @@ public class CustomMobManager {
         DifficultyManager difficulty = plugin.getDifficultyManager();
         int floor = session.getFloor();
         FloorModifier modifier = session.getModifier();
+        if (session.isRestFloor()) {
+            return; // 休息フロアは敵を湧かせない
+        }
         int count = difficulty.spawnCount(floor, modifier);
         int size = generator.getFloorSize();
         int originZ = generator.floorStartZ(floor);
@@ -49,8 +52,9 @@ public class CustomMobManager {
             for (int attempt = 0; attempt < 20; attempt++) {
                 int x = 1 + random.nextInt(size - 2);
                 int z = 1 + random.nextInt(size - 2);
-                if (world.getBlockAt(x, groundY, originZ + z).getType().isAir()
-                        && world.getBlockAt(x, groundY + 1, originZ + z).getType().isAir()) {
+                // 開始部屋(0,0)はスポーン直後に囲まれないよう安全地帯にする
+                boolean startRoom = x <= generator.getCell() && z <= generator.getCell();
+                if (!startRoom && isSpawnable(world, x, groundY, originZ + z)) {
                     Location loc = new Location(world, x + 0.5, groundY + 1, originZ + z + 0.5);
                     spawnMob(world, loc, floor, modifier);
                     break;
@@ -62,9 +66,10 @@ public class CustomMobManager {
     /**
      * BOSSスポーン。
      */
-    public void spawnBoss(World world, Location location) {
+    public void spawnBoss(World world, Location location, int floor) {
         EntityType boss = plugin.getDifficultyManager().randomBoss();
-        spawnEntity(world, location, boss, true, 50, null);
+        // floor はドロップのティア（MobDropListener が SPAWN_FLOOR から読む）に使われる
+        spawnEntity(world, location, boss, true, Math.max(1, floor), null);
     }
 
     public void spawnMob(World world, Location loc, int floor, FloorModifier modifier) {
@@ -80,38 +85,33 @@ public class CustomMobManager {
     private void spawnEntity(World world, Location loc, EntityType type, boolean boss, int floor, FloorModifier modifier, boolean elite) {
         LivingEntity entity = (LivingEntity) world.spawnEntity(loc, type);
         double atkMult = modifier != null ? modifier.getAtkMult() : 1.0;
-        double defMult = modifier != null ? modifier.getDefMult() : 1.0;
-        double spdMult = modifier != null ? modifier.getSpdMult() : 1.0;
 
-        double baseHp = 20.0 + (floor > 0 ? floor : 1) * 4.0;
+        var cfg = plugin.getDungeonConfig();
+        double baseHp = cfg.getMobBaseHp() + (floor > 0 ? floor : 1) * cfg.getMobHpPerFloor();
         if (boss) {
-            baseHp = 200.0;
+            baseHp = cfg.getBossHp();
             entity.setCustomName("§c§lBOSS");
             entity.setCustomNameVisible(true);
         } else if (elite) {
-            baseHp *= 2.5;
-            atkMult *= 1.4;
+            baseHp *= cfg.getEliteHpMultiplier();
+            atkMult *= cfg.getEliteAttackMultiplier();
             entity.setCustomName("§d§lエリート");
             entity.setCustomNameVisible(true);
         }
-        entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(baseHp);
-        entity.setHealth(baseHp);
-        entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(5.0 * atkMult);
-        if (entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED) != null) {
-            entity.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED).setBaseValue(0.25 * spdMult);
+        if (entity.getAttribute(Attribute.GENERIC_MAX_HEALTH) != null) {
+            entity.getAttribute(Attribute.GENERIC_MAX_HEALTH).setBaseValue(baseHp);
+        }
+        entity.setHealth(Math.min(baseHp, entity.getMaxHealth()));
+        // 攻撃力属性を持たない種別（スケルトン等）もあるためnullチェック
+        if (entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) {
+            entity.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE).setBaseValue(cfg.getMobBaseAttack() * atkMult);
         }
         // 種別マーキング（ドロップ判定用）
         entity.getPersistentDataContainer().set(MOB_KEY, PersistentDataType.INTEGER,
                 boss ? 2 : (elite ? 1 : 0));
         entity.getPersistentDataContainer().set(SPAWN_FLOOR, PersistentDataType.INTEGER, Math.max(1, floor));
-        if (modifier == FloorModifier.DARKNESS) {
-            entity.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false));
-        }
         if (modifier == FloorModifier.REGENERATION) {
             entity.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, Integer.MAX_VALUE, 0, false, false));
-        }
-        if (modifier == FloorModifier.HASTE) {
-            entity.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false));
         }
     }
 
@@ -123,10 +123,10 @@ public class CustomMobManager {
      */
     public void dynamicSpawn(Player player) {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
-        if (session == null) {
+        if (session == null || session.isRestFloor()) {
             return;
         }
-        if (random.nextInt(15) != 0) {
+        if (random.nextInt(plugin.getDungeonConfig().getDynamicSpawnOdds()) != 0) {
             return;
         }
         FloorGenerator generator = new FloorGenerator(plugin);
@@ -135,7 +135,8 @@ public class CustomMobManager {
         for (int attempt = 0; attempt < 10; attempt++) {
             int x = center.getBlockX() + random.nextInt(21) - 10;
             int z = center.getBlockZ() + random.nextInt(21) - 10;
-            if (center.getWorld().getBlockAt(x, groundY, z).getType().isAir()) {
+            boolean tooClose = Math.abs(x - center.getBlockX()) < 4 && Math.abs(z - center.getBlockZ()) < 4;
+            if (!tooClose && isSpawnable(center.getWorld(), x, groundY, z)) {
                 Location loc = new Location(center.getWorld(), x + 0.5, groundY + 1, z + 0.5);
                 spawnMob(center.getWorld(), loc, session.getFloor(), session.getModifier());
                 return;
@@ -150,17 +151,23 @@ public class CustomMobManager {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
         FloorModifier modifier = session != null ? session.getModifier() : null;
         Location center = player.getLocation();
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < plugin.getDungeonConfig().getExtractionRushMobs(); i++) {
             for (int attempt = 0; attempt < 10; attempt++) {
                 int x = center.getBlockX() + random.nextInt(15) - 7;
                 int z = center.getBlockZ() + random.nextInt(15) - 7;
-                if (center.getWorld().getBlockAt(x, center.getBlockY() - 1, z).getType().isAir()
-                        && center.getWorld().getBlockAt(x, center.getBlockY(), z).getType().isAir()) {
+                if (isSpawnable(center.getWorld(), x, center.getBlockY() - 1, z)) {
                     Location loc = new Location(center.getWorld(), x + 0.5, center.getBlockY(), z + 0.5);
                     spawnMob(center.getWorld(), loc, Math.max(1, floor), modifier);
                     break;
                 }
             }
         }
+    }
+
+    /** 床が固体で、その上2マスが空気（湧いても壁や穴に埋まらない）。 */
+    private static boolean isSpawnable(World world, int x, int floorY, int z) {
+        return world.getBlockAt(x, floorY, z).getType().isSolid()
+                && world.getBlockAt(x, floorY + 1, z).getType().isAir()
+                && world.getBlockAt(x, floorY + 2, z).getType().isAir();
     }
 }

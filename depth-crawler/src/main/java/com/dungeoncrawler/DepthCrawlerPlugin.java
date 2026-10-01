@@ -97,6 +97,7 @@ public final class DepthCrawlerPlugin extends JavaPlugin {
         this.scoreboardManager = new ScoreboardManager(this);
         this.npcManager = new NpcManager(this);
         this.blackMarketManager = new BlackMarketManager(this);
+        this.shopManager = new ShopManager(this);
         this.reliefGui = new ReliefGui(this);
         this.blacksmithGui = new BlacksmithGui(this);
         this.customMobManager = new CustomMobManager(this);

@@ -18,11 +18,16 @@ public class DungeonManager {
     private final DepthCrawlerPlugin plugin;
     private final Map<UUID, DungeonSession> sessions; // leader -> session
     private final Map<UUID, DungeonSession> playerSession; // player -> session
+    private final Map<String, VoidChunkGenerator> generators = new ConcurrentHashMap<>(); // world名 -> 構造ジェネレーター
 
     public DungeonManager(DepthCrawlerPlugin plugin) {
         this.plugin = plugin;
         this.sessions = new ConcurrentHashMap<>();
         this.playerSession = new ConcurrentHashMap<>();
+    }
+
+    public VoidChunkGenerator getGenerator(World world) {
+        return world == null ? null : generators.get(world.getName());
     }
 
     public DungeonSession createSession(Player leader) {
@@ -51,13 +56,18 @@ public class DungeonManager {
         String name = "dungeon_" + UUID.randomUUID().toString().substring(0, 8) + "_" + System.currentTimeMillis();
         WorldCreator creator = new WorldCreator(name);
         creator.environment(World.Environment.NORMAL);
-        creator.type(WorldType.FLAT);
-        creator.generatorSettings("{\"layers\":[{\"block\":\"minecraft:stone\",\"height\":1}],\"biome\":\"minecraft:plains\"}");
+        var cfg = plugin.getDungeonConfig();
+        VoidChunkGenerator generator = new VoidChunkGenerator(cfg.getGridSize(), cfg.getRoomInnerSize(),
+                cfg.getFloorSpacing(), cfg.getBaseY());
+        creator.generator(generator);
         creator.generateStructures(false);
         World world = Bukkit.createWorld(creator);
         if (world != null) {
+            generators.put(world.getName(), generator);
             world.setGameRule(org.bukkit.GameRule.MOB_GRIEFING, plugin.getDungeonConfig().isMobGriefingEnabled());
             world.setGameRule(org.bukkit.GameRule.DO_FIRE_TICK, plugin.getDungeonConfig().isFireTickEnabled());
+            // バニラの自然湧きは止め、湧き数はDifficultyManager（30+F×3）のみで管理する
+            world.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
             world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
             world.setTime(6000);
         }
@@ -76,16 +86,40 @@ public class DungeonManager {
         if (!sessions.containsKey(session.getLeaderId())) {
             return;
         }
-        for (UUID member : session.getMembers()) {
-            playerSession.remove(member);
-        }
+        // 既に退出済みのメンバーも含め、このセッションを指す全エントリを除去
+        playerSession.values().removeIf(v -> v == session);
         sessions.remove(session.getLeaderId());
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             World world = session.getWorld();
             if (world != null) {
-                Bukkit.unloadWorld(world, false);
+                java.io.File folder = world.getWorldFolder();
+                for (org.bukkit.entity.Player p : world.getPlayers()) {
+                    p.teleport(Bukkit.getWorlds().get(0).getSpawnLocation());
+                }
+                generators.remove(world.getName());
+                if (Bukkit.unloadWorld(world, false)) {
+                    deleteRecursively(folder);
+                }
             }
         }, 40L);
+    }
+
+    /** プレイヤー単位でセッション紐付けを解除する（生還・死亡・脱退時）。 */
+    public void detachPlayer(UUID uuid) {
+        playerSession.remove(uuid);
+    }
+
+    private void deleteRecursively(java.io.File f) {
+        if (f == null || !f.exists()) {
+            return;
+        }
+        java.io.File[] children = f.listFiles();
+        if (children != null) {
+            for (java.io.File c : children) {
+                deleteRecursively(c);
+            }
+        }
+        f.delete();
     }
 
     public void handleDisconnect(Player player) {

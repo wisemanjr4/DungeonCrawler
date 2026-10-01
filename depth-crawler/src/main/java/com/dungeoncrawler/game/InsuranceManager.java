@@ -65,6 +65,10 @@ public class InsuranceManager {
      * 保険契約。料金はアイテム価値×料金率。返り値: 成功可否
      */
     public boolean insure(Player player, ItemStack item, Provider provider) {
+        if (plugin.getItemRegistry().isInsured(item)) {
+            player.sendMessage("§cこのアイテムにはすでに保険がかかっています。");
+            return false;
+        }
         PlayerData data = plugin.getPlayerDataManager().get(player.getUniqueId());
         double value = plugin.getItemRegistry().getValue(item);
         double fee = value * provider.getFeeRate();
@@ -73,11 +77,8 @@ public class InsuranceManager {
             return false;
         }
         data.deductBalance(fee);
-        plugin.getItemRegistry().markInsured(item);
-        InsuranceEntry entry = new InsuranceEntry(UUID.randomUUID(),
-                System.currentTimeMillis() + provider.getReturnTime(), false,
-                provider.name(), item.clone(), provider.getDisplay());
-        data.getInsurance().add(entry);
+        // 契約時は印を付けるだけ。返還エントリは死亡時に作る（生還すれば手元に残るため複製にならない）
+        plugin.getItemRegistry().markInsured(item, provider.name());
         player.sendMessage("§a保険契約しました: " + provider.getDisplay() + "（" + (int) fee + "G）");
         return true;
     }
@@ -119,11 +120,7 @@ public class InsuranceManager {
         }
         data.deductBalance(totalFee);
         for (ItemStack item : targets) {
-            plugin.getItemRegistry().markInsured(item);
-            InsuranceEntry entry = new InsuranceEntry(UUID.randomUUID(),
-                    System.currentTimeMillis() + provider.getReturnTime(), false,
-                    provider.name(), item.clone(), provider.getDisplay());
-            data.getInsurance().add(entry);
+            plugin.getItemRegistry().markInsured(item, provider.name());
             count++;
         }
         player.sendMessage("§a全装備 " + count + " 件を一括保険しました（" + (int) totalFee + "G）。");
@@ -142,6 +139,16 @@ public class InsuranceManager {
                 continue;
             }
             if (plugin.getItemRegistry().isInsured(item)) {
+                String providerName = plugin.getItemRegistry().getInsuredProvider(item);
+                Provider provider;
+                try {
+                    provider = Provider.valueOf(providerName == null ? "ADVENTURER" : providerName);
+                } catch (IllegalArgumentException e) {
+                    provider = Provider.ADVENTURER;
+                }
+                data.getInsurance().add(new InsuranceEntry(UUID.randomUUID(),
+                        System.currentTimeMillis() + provider.getReturnTime(), false,
+                        provider.name(), item.clone(), provider.getDisplay()));
                 evacuated++;
             } else {
                 // 未保険アイテムはブラックマーケットへ流出（50%）
@@ -149,6 +156,7 @@ public class InsuranceManager {
             }
         }
         player.getInventory().clear();
+        plugin.getPlayerDataManager().save(player.getUniqueId());
         if (evacuated > 0) {
             player.sendMessage("§a保険アイテムを " + evacuated + " 件退避しました。返還時間経過後に /dungeon claim で回収できます。");
         }
@@ -168,7 +176,10 @@ public class InsuranceManager {
         entry.setClaimed(true);
         data.getInsurance().remove(entry);
         if (Math.random() <= provider.getReturnRate()) {
-            player.getInventory().addItem(entry.getItem());
+            ItemStack returned = entry.getItem().clone();
+            plugin.getItemRegistry().unmarkInsured(returned);
+            player.getInventory().addItem(returned).values()
+                    .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
             player.sendMessage("§a保険アイテムを回収しました。");
             return true;
         }

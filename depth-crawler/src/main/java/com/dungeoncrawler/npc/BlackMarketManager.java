@@ -27,6 +27,54 @@ public class BlackMarketManager {
 
     public BlackMarketManager(DepthCrawlerPlugin plugin) {
         this.plugin = plugin;
+        load();
+    }
+
+    private java.io.File file() {
+        return new java.io.File(plugin.getDataFolder(), "blackmarket.yml");
+    }
+
+    /** 在庫を blackmarket.yml から読み込む（サーバー再起動をまたいで残す）。 */
+    private void load() {
+        java.io.File f = file();
+        if (!f.exists()) {
+            return;
+        }
+        org.bukkit.configuration.file.YamlConfiguration cfg = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(f);
+        for (java.util.Map<?, ?> m : cfg.getMapList("stock")) {
+            try {
+                ItemStack item = ItemSerializer.deserialize(String.valueOf(m.get("item")));
+                if (item == null) {
+                    continue;
+                }
+                stock.add(new BlackMarketItem(String.valueOf(m.get("id")), item,
+                        ((Number) m.get("price")).doubleValue(), ((Number) m.get("added")).longValue(),
+                        String.valueOf(m.get("owner"))));
+            } catch (RuntimeException e) {
+                plugin.getLogger().warning("ブラックマーケットの在庫を読み込めませんでした: " + e);
+            }
+        }
+    }
+
+    private void save() {
+        org.bukkit.configuration.file.YamlConfiguration cfg = new org.bukkit.configuration.file.YamlConfiguration();
+        List<java.util.Map<String, Object>> list = new ArrayList<>();
+        for (BlackMarketItem e : stock) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("id", e.getId());
+            m.put("price", e.getPrice());
+            m.put("added", e.getAddedAt());
+            m.put("owner", e.getOwnerName());
+            m.put("item", ItemSerializer.serialize(e.getItem()));
+            list.add(m);
+        }
+        cfg.set("stock", list);
+        try {
+            plugin.getDataFolder().mkdirs();
+            cfg.save(file());
+        } catch (java.io.IOException ex) {
+            plugin.getLogger().warning("ブラックマーケットの在庫を保存できませんでした: " + ex);
+        }
     }
 
     public static class BlackMarketItem {
@@ -84,6 +132,7 @@ public class BlackMarketManager {
         if (stock.size() > 200) {
             stock.remove(0);
         }
+        save();
     }
 
     /**
@@ -114,44 +163,29 @@ public class BlackMarketManager {
     }
 
     /**
-     * 購入処理。返り値: 処理したか
+     * 購入処理。クリックしたスロット番号で在庫を特定する（表示用のコピーは値札ロアが付くため、
+     * アイテムの見た目での照合は同名・メタ無しのアイテムで誤る）。返り値: 処理したか
      */
-    public boolean handleBuyClick(Player player, ItemStack clicked) {
-        if (clicked == null) {
+    public boolean handleBuyClick(Player player, int slot) {
+        if (slot < 0 || slot >= 45 || slot >= stock.size()) {
             return false;
         }
-        // 在庫の中から一致するアイテムを探す
-        for (BlackMarketItem entry : stock) {
-            ItemStack stocked = entry.getItem();
-            if (stocked.getType() == clicked.getType()
-                    && stocked.getAmount() == clicked.getAmount()
-                    && areMetaEqual(stocked, clicked)) {
-                var data = plugin.getPlayerDataManager().get(player.getUniqueId());
-                if (!data.hasBalance(entry.getPrice())) {
-                    player.sendMessage(ChatColor.RED + "所持金が不足しています。");
-                    return true;
-                }
-                data.deductBalance(entry.getPrice());
-                player.getInventory().addItem(entry.getItem().clone());
-                stock.remove(entry);
-                player.sendMessage(ChatColor.GREEN + "購入しました: " + (entry.getItem().hasItemMeta() && entry.getItem().getItemMeta().hasDisplayName()
-                        ? entry.getItem().getItemMeta().getDisplayName() : entry.getItem().getType().name()));
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean areMetaEqual(ItemStack a, ItemStack b) {
-        if (a.hasItemMeta() != b.hasItemMeta()) {
-            return false;
-        }
-        if (!a.hasItemMeta()) {
+        BlackMarketItem entry = stock.get(slot);
+        var data = plugin.getPlayerDataManager().get(player.getUniqueId());
+        if (!data.hasBalance(entry.getPrice())) {
+            player.sendMessage(ChatColor.RED + "所持金が不足しています。");
             return true;
         }
-        String da = a.getItemMeta().getDisplayName();
-        String db = b.getItemMeta().getDisplayName();
-        return (da == null ? "" : da).equals(db == null ? "" : db);
+        data.deductBalance(entry.getPrice());
+        stock.remove(entry);
+        save();
+        player.getInventory().addItem(entry.getItem().clone()).values()
+                .forEach(left -> player.getWorld().dropItemNaturally(player.getLocation(), left));
+        player.sendMessage(ChatColor.GREEN + "購入しました: " + (entry.getItem().hasItemMeta() && entry.getItem().getItemMeta().hasDisplayName()
+                ? entry.getItem().getItemMeta().getDisplayName() : entry.getItem().getType().name()));
+        // 在庫が変わったので開き直して表示を更新する
+        openMenu(player);
+        return true;
     }
 
     private static class ItemRegistryProxy {

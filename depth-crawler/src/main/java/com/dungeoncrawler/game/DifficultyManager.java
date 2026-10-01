@@ -18,7 +18,10 @@ public class DifficultyManager {
     }
 
     public int spawnCount(int floor, FloorModifier modifier) {
-        int count = 30 + floor * 3;
+        // plugin==null は単体テスト用（従来値）
+        int base = plugin != null ? plugin.getDungeonConfig().getBaseMobCount() : 30;
+        int perFloor = plugin != null ? plugin.getDungeonConfig().getMobCountPerFloor() : 3;
+        int count = base + floor * perFloor;
         if (modifier == FloorModifier.SWARM) {
             count = (int) (count * 1.5);
         }
@@ -57,13 +60,13 @@ public class DifficultyManager {
         return pool.get(random.nextInt(pool.size()));
     }
 
+    /** ボス候補。巨大すぎて迷路（10×10×3の部屋）に収まらないエンダードラゴンは含めない。 */
+    public static final List<EntityType> BOSS_POOL = List.of(
+            EntityType.IRON_GOLEM, EntityType.ZOMBIE, EntityType.ENDERMAN,
+            EntityType.RAVAGER, EntityType.WITHER, EntityType.WARDEN,
+            EntityType.EVOKER, EntityType.PIGLIN_BRUTE, EntityType.ELDER_GUARDIAN);
+
     public EntityType randomBoss() {
-        EntityType[] bosses = {
-                EntityType.IRON_GOLEM, EntityType.ZOMBIE, EntityType.ENDERMAN,
-                EntityType.RAVAGER, EntityType.WITHER, EntityType.WARDEN,
-                EntityType.EVOKER, EntityType.PIGLIN_BRUTE, EntityType.ELDER_GUARDIAN,
-                EntityType.ENDER_DRAGON
-        };
-        return bosses[random.nextInt(bosses.length)];
+        return BOSS_POOL.get(random.nextInt(BOSS_POOL.size()));
     }
 }

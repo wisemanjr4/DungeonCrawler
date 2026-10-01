@@ -105,6 +105,17 @@ public class DungeonSession {
         this.modifier = modifier;
     }
 
+    /** フロア生成中（生成完了までは出口判定・二重遷移を行わない）。 */
+    private volatile boolean transitioning;
+
+    public boolean isTransitioning() {
+        return transitioning;
+    }
+
+    public void setTransitioning(boolean transitioning) {
+        this.transitioning = transitioning;
+    }
+
     public GameState getState() {
         return state;
     }

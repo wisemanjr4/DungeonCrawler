@@ -1,0 +1,6 @@
+{
+  "name": "depthcrawler-e2e",
+  "private": true,
+  "description": "MineFlayer + 本物のPaperサーバーによるE2Eテスト",
+  "dependencies": { "mineflayer": "^4.23.0" }
+}

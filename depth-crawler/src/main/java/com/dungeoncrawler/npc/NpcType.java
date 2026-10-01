@@ -2,7 +2,7 @@ package com.dungeoncrawler.npc;
 
 public enum NpcType {
 
-    SHOP("§6ショップ", "PRIEST"),
+    SHOP("§6ショップ", "CLERIC"),
     SAFEBOX("§8セーフティボックス", "CARTOGRAPHER"),
     DUNGEON_GUIDE("§cダンジョン案内人", "WEAPONSMITH"),
     BLACKSMITH("§d鍛冶屋", "TOOLSMITH"),
@@ -30,6 +30,10 @@ public enum NpcType {
             if (type.name().equalsIgnoreCase(value) || type.name().replace("_", "").equalsIgnoreCase(value)) {
                 return type;
             }
+        }
+        // コマンド表記（/dungeon npc dungeon 等）の別名
+        if ("dungeon".equalsIgnoreCase(value) || "guide".equalsIgnoreCase(value)) {
+            return DUNGEON_GUIDE;
         }
         return null;
     }

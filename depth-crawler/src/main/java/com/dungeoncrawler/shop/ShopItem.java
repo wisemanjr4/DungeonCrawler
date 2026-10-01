@@ -29,6 +29,10 @@ public class ShopItem {
 
     public static ShopItem of(String name, Material material, int amount, double price) {
         ItemStack item = new ItemStack(material, amount);
+        // 表示名がないと購入クリック時に名前で照合できない
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName("§e" + name);
+        item.setItemMeta(meta);
         return new ShopItem(name, item, price);
     }
 }

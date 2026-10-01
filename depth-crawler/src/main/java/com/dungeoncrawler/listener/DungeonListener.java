@@ -179,7 +179,7 @@ public class DungeonListener implements Listener {
         // ブラックマーケット
         if (title.equals(com.dungeoncrawler.npc.BlackMarketManager.TITLE)) {
             event.setCancelled(true);
-            plugin.getBlackMarketManager().handleBuyClick(player, event.getCurrentItem());
+            plugin.getBlackMarketManager().handleBuyClick(player, event.getRawSlot());
             return;
         }
         // 救助班
@@ -244,10 +244,26 @@ public class DungeonListener implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        // 切断中だったメンバーのみ再接続処理の対象（入室直後の誤表示を防ぐ）
+        DungeonSession joinSession = plugin.getDungeonManager().getSession(player.getUniqueId());
+        boolean wasDisconnected = joinSession != null && !joinSession.isOnline(player.getUniqueId());
         plugin.getDungeonManager().setOnline(player.getUniqueId(), true);
+        // ダンジョン内でログアウト後にサーバー再起動等でセッションが消えていた場合は拠点へ戻す
+        var data = plugin.getPlayerDataManager().get(player.getUniqueId());
+        if (data.isInDungeon() && plugin.getDungeonManager().getSession(player.getUniqueId()) == null) {
+            data.setInDungeon(false);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    player.teleport(plugin.getGameManager().getDefaultHub());
+                    player.setGameMode(org.bukkit.GameMode.SURVIVAL);
+                    player.sendMessage("§eダンジョンが消滅していたため拠点に戻りました。");
+                }
+            }, 1L);
+        }
         // 再接続処理
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && plugin.getDungeonManager().getSession(player.getUniqueId()) != null) {
+            if (wasDisconnected && player.isOnline()
+                    && plugin.getDungeonManager().getSession(player.getUniqueId()) != null) {
                 disconnectHandler.onReconnect(player);
             }
         }, 20L);

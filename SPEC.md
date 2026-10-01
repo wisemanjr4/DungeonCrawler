@@ -217,7 +217,7 @@ floor2: Z=242〜352
 | CASTER | 10 | F4〜 | WITCH, EVOKER, ILLUSIONER, ENDERMAN, VEX... |
 | FLYING | 8 | F4〜 | PHANTOM, VEX, BLAZE, GHAST, BEE... |
 | ELITE | 10 | 確率混入 | 各クラス強化版 |
-| BOSS | 10 | 10F毎 | IRON_GOLEM, ZOMBIE(巨大), ENDERMAN, RAVAGER, WITHER, WARDEN, EVOKER, PIGLIN_BRUTE, ELDER_GUARDIAN, ENDER_DRAGON |
+| BOSS | 9 | 10F毎 | IRON_GOLEM, ZOMBIE(巨大), ENDERMAN, RAVAGER, WITHER, WARDEN, EVOKER, PIGLIN_BRUTE, ELDER_GUARDIAN（ENDER_DRAGONは巨大すぎるため除外） |
 
 ### 5.2 出現テーブル
 
@@ -554,6 +554,18 @@ player:
   max-safe-box-slots: 54
 shop:
   reforge-cost: 100.0
+# 難易度バランス（未設定なら下記の既定値）
+difficulty:
+  base-mob-count: 30          # 初期湧き数 = base + F × per-floor
+  mob-count-per-floor: 3
+  mob-base-hp: 20.0           # 通常MOBのHP = base + F × per-floor
+  mob-hp-per-floor: 4.0
+  mob-base-attack: 5.0
+  boss-hp: 200.0
+  elite-hp-multiplier: 2.5
+  elite-attack-multiplier: 1.4
+  extraction-rush-mobs: 6     # ゴールド上で湧く数（フロアにつき1回）
+  dynamic-spawn-odds: 15      # 2秒ごとに 1/N の確率で1体追加
 ```
 
 ### 15.2 rooms.yml（管理者が部屋登録時に自動生成）

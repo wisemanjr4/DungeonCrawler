@@ -57,6 +57,49 @@ public class DungeonConfig {
         return cfg.getDouble("dungeon.exit-stand-seconds", 3.0);
     }
 
+    // --- 難易度（config.yml の difficulty.*。未設定なら従来値） ---
+
+    public int getBaseMobCount() {
+        return cfg.getInt("difficulty.base-mob-count", 30);
+    }
+
+    public int getMobCountPerFloor() {
+        return cfg.getInt("difficulty.mob-count-per-floor", 3);
+    }
+
+    public double getMobBaseHp() {
+        return cfg.getDouble("difficulty.mob-base-hp", 20.0);
+    }
+
+    public double getMobHpPerFloor() {
+        return cfg.getDouble("difficulty.mob-hp-per-floor", 4.0);
+    }
+
+    public double getMobBaseAttack() {
+        return cfg.getDouble("difficulty.mob-base-attack", 5.0);
+    }
+
+    public double getBossHp() {
+        return cfg.getDouble("difficulty.boss-hp", 200.0);
+    }
+
+    public double getEliteHpMultiplier() {
+        return cfg.getDouble("difficulty.elite-hp-multiplier", 2.5);
+    }
+
+    public double getEliteAttackMultiplier() {
+        return cfg.getDouble("difficulty.elite-attack-multiplier", 1.4);
+    }
+
+    public int getExtractionRushMobs() {
+        return cfg.getInt("difficulty.extraction-rush-mobs", 6);
+    }
+
+    /** 動的湧き: 2秒ごとに 1/N の確率で1体。大きいほど湧きにくい。 */
+    public int getDynamicSpawnOdds() {
+        return Math.max(1, cfg.getInt("difficulty.dynamic-spawn-odds", 15));
+    }
+
     public int getMaxSafeBoxSlots() {
         return cfg.getInt("player.max-safe-box-slots", 54);
     }

@@ -53,13 +53,13 @@ public class WeaponStats {
      * DC の atk_mult 等から基礎値を導出する。未初期化なら通常の初期化。
      */
     public static void ensureInitialized(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
+        if (item == null || item.getType().isAir()) {
             return;
         }
         PersistentDataContainer c = item.getItemMeta().getPersistentDataContainer();
-        Double baseAtk = c.get(BASE_ATK, PersistentDataType.DOUBLE);
-        if (baseAtk != null && baseAtk > 0) {
-            return; // すでに初期化済み
+        Integer tagged = c.get(IS_WEAPON, PersistentDataType.INTEGER);
+        if (tagged != null && tagged == 1 && c.has(BASE_ATK, PersistentDataType.DOUBLE)) {
+            return; // すでに初期化済み（基礎攻撃力が0まで下がっても再初期化しない）
         }
         // DC の PDC から atk_mult を読み取る（DepthCrawler の namespace は小文字）
         NamespacedKey dcAtk = new NamespacedKey("depthcrawler", "atk_mult");
@@ -70,6 +70,15 @@ public class WeaponStats {
         double base = atkMult;
         double max = base * 1.5;
         initialize(item, base, max, base * 0.5, base * 0.75);
+    }
+
+    /** Weaponly 初期化済み（強化対象として登録済み）か。 */
+    public static boolean isTagged(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return false;
+        }
+        Integer v = item.getItemMeta().getPersistentDataContainer().get(IS_WEAPON, PersistentDataType.INTEGER);
+        return v != null && v == 1;
     }
 
     public static boolean isWeapon(ItemStack item) {
@@ -172,6 +181,12 @@ public class WeaponStats {
         item.setItemMeta(meta);
     }
 
+    public static void clearGems(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        meta.getPersistentDataContainer().remove(GEMS);
+        item.setItemMeta(meta);
+    }
+
     public static void removeGem(ItemStack item, int index) {
         List<String> gems = getGems(item);
         if (index < 0 || index >= gems.size()) {
@@ -244,6 +259,7 @@ public class WeaponStats {
         }
         ItemMeta meta = item.getItemMeta();
         List<String> lore = new ArrayList<>();
+        meta.setDisplayName(buildDisplayName(item, meta.hasDisplayName() ? meta.getDisplayName() : null));
 
         int level = getAwakenLevel(item);
         int quality = getAwakenQuality(item);
@@ -282,6 +298,26 @@ public class WeaponStats {
         kept.addAll(lore);
         meta.setLore(kept);
         item.setItemMeta(meta);
+    }
+
+    private static final String[] ROMAN = {"", "Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ"};
+    private static final java.util.regex.Pattern NAME_SUFFIX =
+            java.util.regex.Pattern.compile("(?:§.)*( [ⅠⅡⅢⅣⅤ])?( \\+\\d+)?( 改\\[[^\\]]*\\])?(?:§.)*$");
+
+    /** 表記例: 炎帝剣フレアゼード Ⅴ +10 改[隼] */
+    private static String buildDisplayName(ItemStack item, String current) {
+        if (current == null) {
+            return null;
+        }
+        String base = NAME_SUFFIX.matcher(current).replaceFirst("");
+        StringBuilder sb = new StringBuilder(base);
+        int q = Math.min(5, getAwakenQuality(item));
+        int lv = getAwakenLevel(item);
+        String mod = getModType(item);
+        if (q > 0) sb.append(' ').append(ROMAN[q]);
+        if (lv > 0) sb.append(" +").append(lv);
+        if (mod != null) sb.append(" 改[").append(mod).append(']');
+        return sb.toString();
     }
 
     private static String format(double v) {

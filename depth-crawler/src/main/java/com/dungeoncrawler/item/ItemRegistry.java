@@ -31,6 +31,7 @@ public class ItemRegistry {
     public static final NamespacedKey IS_MATERIAL = key("is_material");
     public static final NamespacedKey VALUE = key("value");
     public static final NamespacedKey INSURED = key("insured");
+    public static final NamespacedKey INSURED_PROVIDER = key("insured_provider");
     public static final NamespacedKey CONSUMABLE = key("consumable");
 
     private final DepthCrawlerPlugin plugin;
@@ -75,11 +76,37 @@ public class ItemRegistry {
     }
 
     public void markInsured(ItemStack item) {
+        markInsured(item, "ROYAL");
+    }
+
+    /** 保険加入済みの印を付ける（契約業者名も保持し、死亡時の返還条件に使う）。 */
+    public void markInsured(ItemStack item, String providerName) {
         ItemMeta meta = item.getItemMeta();
         meta.getPersistentDataContainer().set(INSURED, PersistentDataType.INTEGER, 1);
+        meta.getPersistentDataContainer().set(INSURED_PROVIDER, PersistentDataType.STRING, providerName);
         List<String> lore = meta.getLore() == null ? new ArrayList<>() : meta.getLore();
-        lore.add("§6§l【ROYAL 保障済】");
+        lore.add("§6§l【" + providerName + " 保障済】");
         meta.setLore(lore);
+        item.setItemMeta(meta);
+    }
+
+    public String getInsuredProvider(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        return item.getItemMeta().getPersistentDataContainer().get(INSURED_PROVIDER, PersistentDataType.STRING);
+    }
+
+    /** 保険の印と表示を外す（保険アイテムを返還した後の状態に戻す）。 */
+    public void unmarkInsured(ItemStack item) {
+        ItemMeta meta = item.getItemMeta();
+        meta.getPersistentDataContainer().remove(INSURED);
+        meta.getPersistentDataContainer().remove(INSURED_PROVIDER);
+        if (meta.getLore() != null) {
+            List<String> lore = new ArrayList<>(meta.getLore());
+            lore.removeIf(l -> l.contains("保障済】"));
+            meta.setLore(lore);
+        }
         item.setItemMeta(meta);
     }
 

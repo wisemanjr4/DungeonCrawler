@@ -37,7 +37,6 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         WeaponStats.ensureInitialized(hand);
-        player.getInventory().setItemInMainHand(hand);
 
         switch (args[0].toLowerCase()) {
             case "reforge" -> reforge(player, hand, args.length > 1 && args[1].equalsIgnoreCase("precise"));
@@ -49,6 +48,8 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             case "info" -> info(player, hand);
             default -> sendHelp(player);
         }
+        // 変更はここで書き戻す（先に書き戻すと以降の変更が切り離されたコピーにしか入らない）
+        player.getInventory().setItemInMainHand(hand);
         return true;
     }
 
@@ -68,27 +69,24 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        boolean up;
-        if (precise) {
-            up = true;
-            current = max;
-        } else {
-            up = Math.random() * 100 < success;
-        }
+        // 精密鍛石は下降せず必ず上昇（巻き込みなし）
+        boolean up = precise || Math.random() * 100 < success;
+        double before = current;
 
         if (up) {
             double gain = (max - current) * 0.1 + 0.5;
             current = Math.min(max, current + gain);
             WeaponStats.setBaseAtk(item, current);
-            player.sendMessage(ChatColor.GREEN + "リフォージ成功! 攻撃力: " + format(current) + " → " + format(Math.min(max, current + gain)));
+            player.sendMessage(ChatColor.GREEN + "リフォージ成功! 攻撃力: " + format(before) + " → " + format(current));
         } else {
             double loss = (max - current) * 0.05 + 0.3;
             current = Math.max(0, current - loss);
             WeaponStats.setBaseAtk(item, current);
-            player.sendMessage(ChatColor.RED + "リフォージ失敗... 攻撃力が下がりました: " + format(current));
+            player.sendMessage(ChatColor.RED + "リフォージ失敗... 攻撃力: " + format(before) + " → " + format(current));
         }
-        // リフォージでジェム・改造は外れる
+        // リフォージでジェム・改造は外れる（覚醒は引き継ぐ）
         WeaponStats.setModType(item, null);
+        WeaponStats.clearGems(item);
         player.sendMessage(ChatColor.GRAY + "リフォージによりジェム・改造は外れました。");
         WeaponStats.updateLore(item);
     }
@@ -101,7 +99,12 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
             return;
         }
         double cost = plugin.getConfig().getDouble("economy.awaken-base-cost", 200) + level * 100;
+        if (!consumeMaterial(player)) {
+            player.sendMessage(ChatColor.RED + "覚醒には素材アイテムが1個必要です。");
+            return;
+        }
         if (!pay(player, cost)) {
+            refundMaterial(player);
             player.sendMessage(ChatColor.RED + "残高が不足しています（必要: " + (int) cost + "G）。");
             return;
         }
@@ -240,8 +243,39 @@ public class WeaponlyCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             return (Boolean) data.getClass().getMethod("deductBalance", double.class).invoke(data, amount);
-        } catch (Exception e) {
+        } catch (ReflectiveOperationException e) {
+            plugin.getLogger().warning("DepthCrawler 連携に失敗したため操作を拒否しました: " + e);
+            return false;
+        }
+    }
+
+    private static final org.bukkit.NamespacedKey DC_MATERIAL = new org.bukkit.NamespacedKey("depthcrawler", "is_material");
+    private ItemStack lastConsumed;
+
+    /** DepthCrawler 導入時のみ、素材アイテムを1個消費する（未導入なら不要）。 */
+    private boolean consumeMaterial(Player player) {
+        lastConsumed = null;
+        if (player.getServer().getPluginManager().getPlugin("DepthCrawler") == null) {
             return true;
+        }
+        for (ItemStack it : player.getInventory().getContents()) {
+            if (it == null || !it.hasItemMeta()) continue;
+            Integer v = it.getItemMeta().getPersistentDataContainer().get(DC_MATERIAL, org.bukkit.persistence.PersistentDataType.INTEGER);
+            if (v != null && v == 1) {
+                lastConsumed = it.clone();
+                lastConsumed.setAmount(1);
+                it.setAmount(it.getAmount() - 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void refundMaterial(Player player) {
+        if (lastConsumed != null) {
+            player.getInventory().addItem(lastConsumed).values()
+                    .forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
+            lastConsumed = null;
         }
     }
 

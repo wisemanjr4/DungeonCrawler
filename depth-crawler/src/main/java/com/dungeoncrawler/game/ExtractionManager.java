@@ -30,15 +30,29 @@ public class ExtractionManager {
     public void tick(Player player) {
         DungeonSession session = plugin.getDungeonManager().getSession(player.getUniqueId());
         if (session == null) {
+            clearAll(player);
+            return;
+        }
+        if (session.isTransitioning()) {
             clear(player);
             return;
         }
         Location loc = player.getLocation();
-        Material under = player.getLocation().subtract(0, 1, 0).getBlock().getType();
-        Material standing = player.getLocation().getBlock().getType();
-
-        boolean emerald = standing == Material.EMERALD_BLOCK || under == Material.EMERALD_BLOCK;
-        boolean gold = standing == Material.GOLD_BLOCK || under == Material.GOLD_BLOCK;
+        boolean emerald = false;
+        boolean gold = false;
+        // 足元の2段 × 体の幅（±0.3）を見て、ブロック境界に立っていても検知する
+        for (double dx : new double[]{-0.3, 0.0, 0.3}) {
+            for (double dz : new double[]{-0.3, 0.0, 0.3}) {
+                for (double dy : new double[]{0.0, -0.5, -1.0}) {
+                    Material m = loc.clone().add(dx, dy, dz).getBlock().getType();
+                    if (m == Material.EMERALD_BLOCK) emerald = true;
+                    if (m == Material.GOLD_BLOCK) gold = true;
+                }
+            }
+        }
+        if (emerald && gold) {
+            gold = false; // 両方に触れている場合は前進を優先
+        }
 
         if (!emerald && !gold) {
             clear(player);
@@ -46,13 +60,12 @@ public class ExtractionManager {
         }
 
         long now = System.currentTimeMillis();
-        long start = standingSince.getOrDefault(player.getUniqueId(), now);
         if (standingSince.get(player.getUniqueId()) == null) {
             standingSince.put(player.getUniqueId(), now);
             warned.put(player.getUniqueId(), false);
             player.sendMessage("§e出口検知... 3秒間その場に留まってください。");
         }
-        double elapsed = (now - start) / 1000.0;
+        double elapsed = (now - standingSince.get(player.getUniqueId())) / 1000.0;
         player.spawnParticle(Particle.PORTAL, loc, 20, 0.5, 0.5, 0.5, 0.1);
 
         if (elapsed >= 1.5 && !warned.getOrDefault(player.getUniqueId(), false)) {
@@ -71,13 +84,19 @@ public class ExtractionManager {
             } else {
                 plugin.getGameManager().extract(player);
             }
-            clear(player);
+            clearAll(player);
         }
     }
 
+    /** ブロックから外れた時の巻き戻し。撤退ラッシュはフロアにつき1回だけなので rushTriggered は残す。 */
     public void clear(Player player) {
         standingSince.remove(player.getUniqueId());
         warned.remove(player.getUniqueId());
+    }
+
+    /** 遷移・帰還の完了時、またはセッション終了時に、ラッシュ状態も含めて全て初期化する。 */
+    public void clearAll(Player player) {
+        clear(player);
         rushTriggered.remove(player.getUniqueId());
     }
 }

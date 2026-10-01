@@ -70,6 +70,10 @@ public class PartyManager {
     }
 
     public void leave(Player player) {
+        if (plugin.getDungeonManager().getSession(player.getUniqueId()) != null) {
+            player.sendMessage("§cダンジョン中はパーティを脱退できません。");
+            return;
+        }
         Party party = partyByPlayer.remove(player.getUniqueId());
         if (party == null) {
             player.sendMessage("§cパーティに所属していません。");
